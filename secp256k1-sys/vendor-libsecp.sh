@@ -26,7 +26,7 @@ done
 
 cd "$PARENT_DIR" || exit 1
 rm -rf "$DIR"
-git clone https://github.com/bitcoin-core/secp256k1.git "$DIR"
+git clone https://github.com/ElementsProject/secp256k1-zkp.git "$DIR"
 cd "$DIR"
 if [ -n "$REV" ]; then
     git checkout "$REV"
@@ -44,6 +44,9 @@ patch "$DIR/include/secp256k1.h" "./secp256k1.h.patch"
 patch "$DIR/src/secp256k1.c" "./secp256k1.c.patch"
 patch "$DIR/src/scratch_impl.h" "./scratch_impl.h.patch"
 patch "$DIR/src/util.h" "./util.h.patch"
+
+# Make sure none of the includes have a space
+find "$DIR" -not -path '*/\.*' -type f -print0 | xargs -0 sed -i "s/# include/#include/g"
 
 # Prefix all methods with rustsecp and a version prefix
 find "$DIR" -not -path '*/\.*' -type f -print0 | xargs -0 sed -i "/^#include/! s/secp256k1_/rustsecp256k1_v${VERSIONCODE}_/g"
