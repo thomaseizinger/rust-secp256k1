@@ -25,7 +25,7 @@ static int recovery_test_nonce_function(unsigned char *nonce32, const unsigned c
     }
     /* On the next run, return a valid nonce, but flip a coin as to whether or not to fail signing. */
     memset(nonce32, 1, 32);
-    return rustsecp256k1_v0_2_0_rand_bits(1);
+    return rustsecp256k1_v0_2_0_testrand_bits(1);
 }
 
 void test_ecdsa_recovery_api(void) {
@@ -184,7 +184,7 @@ void test_ecdsa_recovery_end_to_end(void) {
     CHECK(rustsecp256k1_v0_2_0_ecdsa_sign_recoverable(ctx, &rsignature[3], message, privkey, NULL, extra) == 1);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_serialize_compact(ctx, sig, &recid, &rsignature[4]) == 1);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_convert(ctx, &signature[4], &rsignature[4]) == 1);
-    CHECK(memcmp(&signature[4], &signature[0], 64) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[4], &signature[0], 64) == 0);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_verify(ctx, &signature[4], message, &pubkey) == 1);
     memset(&rsignature[4], 0, sizeof(rsignature[4]));
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_parse_compact(ctx, &rsignature[4], sig, recid) == 1);
@@ -193,16 +193,16 @@ void test_ecdsa_recovery_end_to_end(void) {
     /* Parse compact (with recovery id) and recover. */
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_parse_compact(ctx, &rsignature[4], sig, recid) == 1);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recover(ctx, &recpubkey, &rsignature[4], message) == 1);
-    CHECK(memcmp(&pubkey, &recpubkey, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &recpubkey, sizeof(pubkey)) == 0);
     /* Serialize/destroy/parse signature and verify again. */
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_serialize_compact(ctx, sig, &recid, &rsignature[4]) == 1);
-    sig[rustsecp256k1_v0_2_0_rand_bits(6)] += 1 + rustsecp256k1_v0_2_0_rand_int(255);
+    sig[rustsecp256k1_v0_2_0_testrand_bits(6)] += 1 + rustsecp256k1_v0_2_0_testrand_int(255);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_parse_compact(ctx, &rsignature[4], sig, recid) == 1);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recoverable_signature_convert(ctx, &signature[4], &rsignature[4]) == 1);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_verify(ctx, &signature[4], message, &pubkey) == 0);
     /* Recover again */
     CHECK(rustsecp256k1_v0_2_0_ecdsa_recover(ctx, &recpubkey, &rsignature[4], message) == 0 ||
-          memcmp(&pubkey, &recpubkey, sizeof(pubkey)) != 0);
+          rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &recpubkey, sizeof(pubkey)) != 0);
 }
 
 /* Tests several edge cases. */

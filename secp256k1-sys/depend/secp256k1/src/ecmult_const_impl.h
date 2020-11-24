@@ -140,19 +140,16 @@ static void rustsecp256k1_v0_2_0_ecmult_const(rustsecp256k1_v0_2_0_gej *r, const
     rustsecp256k1_v0_2_0_fe Z;
 
     int skew_1;
-#ifdef USE_ENDOMORPHISM
     rustsecp256k1_v0_2_0_ge pre_a_lam[ECMULT_TABLE_SIZE(WINDOW_A)];
     int wnaf_lam[1 + WNAF_SIZE(WINDOW_A - 1)];
     int skew_lam;
     rustsecp256k1_v0_2_0_scalar q_1, q_lam;
-#endif
     int wnaf_1[1 + WNAF_SIZE(WINDOW_A - 1)];
 
     int i;
 
     /* build wnaf representation for q. */
     int rsize = size;
-#ifdef USE_ENDOMORPHISM
     if (size > 128) {
         rsize = 128;
         /* split q into q_1 and q_lam (where q = q_1 + q_lam*lambda, and q_1 and q_lam are ~128 bit) */
@@ -160,12 +157,9 @@ static void rustsecp256k1_v0_2_0_ecmult_const(rustsecp256k1_v0_2_0_gej *r, const
         skew_1   = rustsecp256k1_v0_2_0_wnaf_const(wnaf_1,   &q_1,   WINDOW_A - 1, 128);
         skew_lam = rustsecp256k1_v0_2_0_wnaf_const(wnaf_lam, &q_lam, WINDOW_A - 1, 128);
     } else
-#endif
     {
         skew_1   = rustsecp256k1_v0_2_0_wnaf_const(wnaf_1, scalar, WINDOW_A - 1, size);
-#ifdef USE_ENDOMORPHISM
         skew_lam = 0;
-#endif
     }
 
     /* Calculate odd multiples of a.
@@ -179,14 +173,12 @@ static void rustsecp256k1_v0_2_0_ecmult_const(rustsecp256k1_v0_2_0_gej *r, const
     for (i = 0; i < ECMULT_TABLE_SIZE(WINDOW_A); i++) {
         rustsecp256k1_v0_2_0_fe_normalize_weak(&pre_a[i].y);
     }
-#ifdef USE_ENDOMORPHISM
     if (size > 128) {
         for (i = 0; i < ECMULT_TABLE_SIZE(WINDOW_A); i++) {
             rustsecp256k1_v0_2_0_ge_mul_lambda(&pre_a_lam[i], &pre_a[i]);
         }
 
     }
-#endif
 
     /* first loop iteration (separated out so we can directly set r, rather
      * than having it start at infinity, get doubled several times, then have
@@ -195,14 +187,12 @@ static void rustsecp256k1_v0_2_0_ecmult_const(rustsecp256k1_v0_2_0_gej *r, const
     VERIFY_CHECK(i != 0);
     ECMULT_CONST_TABLE_GET_GE(&tmpa, pre_a, i, WINDOW_A);
     rustsecp256k1_v0_2_0_gej_set_ge(r, &tmpa);
-#ifdef USE_ENDOMORPHISM
     if (size > 128) {
         i = wnaf_lam[WNAF_SIZE_BITS(rsize, WINDOW_A - 1)];
         VERIFY_CHECK(i != 0);
         ECMULT_CONST_TABLE_GET_GE(&tmpa, pre_a_lam, i, WINDOW_A);
         rustsecp256k1_v0_2_0_gej_add_ge(r, r, &tmpa);
     }
-#endif
     /* remaining loop iterations */
     for (i = WNAF_SIZE_BITS(rsize, WINDOW_A - 1) - 1; i >= 0; i--) {
         int n;
@@ -215,14 +205,12 @@ static void rustsecp256k1_v0_2_0_ecmult_const(rustsecp256k1_v0_2_0_gej *r, const
         ECMULT_CONST_TABLE_GET_GE(&tmpa, pre_a, n, WINDOW_A);
         VERIFY_CHECK(n != 0);
         rustsecp256k1_v0_2_0_gej_add_ge(r, r, &tmpa);
-#ifdef USE_ENDOMORPHISM
         if (size > 128) {
             n = wnaf_lam[i];
             ECMULT_CONST_TABLE_GET_GE(&tmpa, pre_a_lam, n, WINDOW_A);
             VERIFY_CHECK(n != 0);
             rustsecp256k1_v0_2_0_gej_add_ge(r, r, &tmpa);
         }
-#endif
     }
 
     rustsecp256k1_v0_2_0_fe_mul(&r->z, &r->z, &Z);
@@ -231,43 +219,35 @@ static void rustsecp256k1_v0_2_0_ecmult_const(rustsecp256k1_v0_2_0_gej *r, const
         /* Correct for wNAF skew */
         rustsecp256k1_v0_2_0_ge correction = *a;
         rustsecp256k1_v0_2_0_ge_storage correction_1_stor;
-#ifdef USE_ENDOMORPHISM
         rustsecp256k1_v0_2_0_ge_storage correction_lam_stor;
-#endif
         rustsecp256k1_v0_2_0_ge_storage a2_stor;
         rustsecp256k1_v0_2_0_gej tmpj;
         rustsecp256k1_v0_2_0_gej_set_ge(&tmpj, &correction);
         rustsecp256k1_v0_2_0_gej_double_var(&tmpj, &tmpj, NULL);
         rustsecp256k1_v0_2_0_ge_set_gej(&correction, &tmpj);
         rustsecp256k1_v0_2_0_ge_to_storage(&correction_1_stor, a);
-#ifdef USE_ENDOMORPHISM
         if (size > 128) {
             rustsecp256k1_v0_2_0_ge_to_storage(&correction_lam_stor, a);
         }
-#endif
         rustsecp256k1_v0_2_0_ge_to_storage(&a2_stor, &correction);
 
         /* For odd numbers this is 2a (so replace it), for even ones a (so no-op) */
         rustsecp256k1_v0_2_0_ge_storage_cmov(&correction_1_stor, &a2_stor, skew_1 == 2);
-#ifdef USE_ENDOMORPHISM
         if (size > 128) {
             rustsecp256k1_v0_2_0_ge_storage_cmov(&correction_lam_stor, &a2_stor, skew_lam == 2);
         }
-#endif
 
         /* Apply the correction */
         rustsecp256k1_v0_2_0_ge_from_storage(&correction, &correction_1_stor);
         rustsecp256k1_v0_2_0_ge_neg(&correction, &correction);
         rustsecp256k1_v0_2_0_gej_add_ge(r, r, &correction);
 
-#ifdef USE_ENDOMORPHISM
         if (size > 128) {
             rustsecp256k1_v0_2_0_ge_from_storage(&correction, &correction_lam_stor);
             rustsecp256k1_v0_2_0_ge_neg(&correction, &correction);
             rustsecp256k1_v0_2_0_ge_mul_lambda(&correction, &correction);
             rustsecp256k1_v0_2_0_gej_add_ge(r, r, &correction);
         }
-#endif
     }
 }
 

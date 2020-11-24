@@ -164,6 +164,19 @@ static void rustsecp256k1_v0_2_0_sha256_finalize(rustsecp256k1_v0_2_0_sha256 *ha
     memcpy(out32, (const unsigned char*)out, 32);
 }
 
+/* Initializes a sha256 struct and writes the 64 byte string
+ * SHA256(tag)||SHA256(tag) into it. */
+static void rustsecp256k1_v0_2_0_sha256_initialize_tagged(rustsecp256k1_v0_2_0_sha256 *hash, const unsigned char *tag, size_t taglen) {
+    unsigned char buf[32];
+    rustsecp256k1_v0_2_0_sha256_initialize(hash);
+    rustsecp256k1_v0_2_0_sha256_write(hash, tag, taglen);
+    rustsecp256k1_v0_2_0_sha256_finalize(hash, buf);
+
+    rustsecp256k1_v0_2_0_sha256_initialize(hash);
+    rustsecp256k1_v0_2_0_sha256_write(hash, buf, 32);
+    rustsecp256k1_v0_2_0_sha256_write(hash, buf, 32);
+}
+
 static void rustsecp256k1_v0_2_0_hmac_sha256_initialize(rustsecp256k1_v0_2_0_hmac_sha256 *hash, const unsigned char *key, size_t keylen) {
     size_t n;
     unsigned char rkey[64];

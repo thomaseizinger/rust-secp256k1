@@ -17,6 +17,7 @@ SECP256K1_INLINE static int rustsecp256k1_v0_2_0_scalar_is_even(const rustsecp25
 
 SECP256K1_INLINE static void rustsecp256k1_v0_2_0_scalar_clear(rustsecp256k1_v0_2_0_scalar *r) { *r = 0; }
 SECP256K1_INLINE static void rustsecp256k1_v0_2_0_scalar_set_int(rustsecp256k1_v0_2_0_scalar *r, unsigned int v) { *r = v; }
+SECP256K1_INLINE static void rustsecp256k1_v0_2_0_scalar_set_u64(rustsecp256k1_v0_2_0_scalar *r, uint64_t v) { *r = v % EXHAUSTIVE_TEST_ORDER; }
 
 SECP256K1_INLINE static unsigned int rustsecp256k1_v0_2_0_scalar_get_bits(const rustsecp256k1_v0_2_0_scalar *a, unsigned int offset, unsigned int count) {
     if (offset < 32)
@@ -48,14 +49,17 @@ static void rustsecp256k1_v0_2_0_scalar_cadd_bit(rustsecp256k1_v0_2_0_scalar *r,
 }
 
 static void rustsecp256k1_v0_2_0_scalar_set_b32(rustsecp256k1_v0_2_0_scalar *r, const unsigned char *b32, int *overflow) {
-    const int base = 0x100 % EXHAUSTIVE_TEST_ORDER;
     int i;
+    int over = 0;
     *r = 0;
     for (i = 0; i < 32; i++) {
-       *r = ((*r * base) + b32[i]) % EXHAUSTIVE_TEST_ORDER;
+        *r = (*r * 0x100) + b32[i];
+        if (*r >= EXHAUSTIVE_TEST_ORDER) {
+            over = 1;
+            *r %= EXHAUSTIVE_TEST_ORDER;
+        }
     }
-    /* just deny overflow, it basically always happens */
-    if (overflow) *overflow = 0;
+    if (overflow) *overflow = over;
 }
 
 static void rustsecp256k1_v0_2_0_scalar_get_b32(unsigned char *bin, const rustsecp256k1_v0_2_0_scalar* a) {
@@ -120,6 +124,11 @@ static SECP256K1_INLINE void rustsecp256k1_v0_2_0_scalar_cmov(rustsecp256k1_v0_2
     mask0 = flag + ~((uint32_t)0);
     mask1 = ~mask0;
     *r = (*r & mask0) | (*a & mask1);
+}
+
+SECP256K1_INLINE static void rustsecp256k1_v0_2_0_scalar_chacha20(rustsecp256k1_v0_2_0_scalar *r1, rustsecp256k1_v0_2_0_scalar *r2, const unsigned char *seed, uint64_t n) {
+    *r1 = (seed[0] + n) % EXHAUSTIVE_TEST_ORDER;
+    *r2 = (seed[1] + n) % EXHAUSTIVE_TEST_ORDER;
 }
 
 #endif /* SECP256K1_SCALAR_REPR_IMPL_H */

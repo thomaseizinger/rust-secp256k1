@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2013, 2014, 2015 Pieter Wuille, Gregory Maxwell      *
+ * Copyright (c) 2013-2015 Pieter Wuille, Gregory Maxwell             *
  * Distributed under the MIT software license, see the accompanying   *
  * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
@@ -54,7 +54,7 @@ static void uncounting_illegal_callback_fn(const char* str, void* data) {
 void random_field_element_test(rustsecp256k1_v0_2_0_fe *fe) {
     do {
         unsigned char b32[32];
-        rustsecp256k1_v0_2_0_rand256_test(b32);
+        rustsecp256k1_v0_2_0_testrand256_test(b32);
         if (rustsecp256k1_v0_2_0_fe_set_b32(fe, b32)) {
             break;
         }
@@ -63,7 +63,7 @@ void random_field_element_test(rustsecp256k1_v0_2_0_fe *fe) {
 
 void random_field_element_magnitude(rustsecp256k1_v0_2_0_fe *fe) {
     rustsecp256k1_v0_2_0_fe zero;
-    int n = rustsecp256k1_v0_2_0_rand_int(9);
+    int n = rustsecp256k1_v0_2_0_testrand_int(9);
     rustsecp256k1_v0_2_0_fe_normalize(fe);
     if (n == 0) {
         return;
@@ -81,11 +81,12 @@ void random_group_element_test(rustsecp256k1_v0_2_0_ge *ge) {
     rustsecp256k1_v0_2_0_fe fe;
     do {
         random_field_element_test(&fe);
-        if (rustsecp256k1_v0_2_0_ge_set_xo_var(ge, &fe, rustsecp256k1_v0_2_0_rand_bits(1))) {
+        if (rustsecp256k1_v0_2_0_ge_set_xo_var(ge, &fe, rustsecp256k1_v0_2_0_testrand_bits(1))) {
             rustsecp256k1_v0_2_0_fe_normalize(&ge->y);
             break;
         }
     } while(1);
+    ge->infinity = 0;
 }
 
 void random_group_element_jacobian_test(rustsecp256k1_v0_2_0_gej *gej, const rustsecp256k1_v0_2_0_ge *ge) {
@@ -107,7 +108,7 @@ void random_scalar_order_test(rustsecp256k1_v0_2_0_scalar *num) {
     do {
         unsigned char b32[32];
         int overflow = 0;
-        rustsecp256k1_v0_2_0_rand256_test(b32);
+        rustsecp256k1_v0_2_0_testrand256_test(b32);
         rustsecp256k1_v0_2_0_scalar_set_b32(num, b32, &overflow);
         if (overflow || rustsecp256k1_v0_2_0_scalar_is_zero(num)) {
             continue;
@@ -120,7 +121,7 @@ void random_scalar_order(rustsecp256k1_v0_2_0_scalar *num) {
     do {
         unsigned char b32[32];
         int overflow = 0;
-        rustsecp256k1_v0_2_0_rand256(b32);
+        rustsecp256k1_v0_2_0_testrand256(b32);
         rustsecp256k1_v0_2_0_scalar_set_b32(num, b32, &overflow);
         if (overflow || rustsecp256k1_v0_2_0_scalar_is_zero(num)) {
             continue;
@@ -133,6 +134,52 @@ void random_scalar_order_b32(unsigned char *b32) {
     rustsecp256k1_v0_2_0_scalar num;
     random_scalar_order(&num);
     rustsecp256k1_v0_2_0_scalar_get_b32(b32, &num);
+}
+
+void run_util_tests(void) {
+    int i;
+    uint64_t r;
+    uint64_t r2;
+    uint64_t r3;
+    int64_t s;
+    CHECK(rustsecp256k1_v0_2_0_clz64_var(0) == 64);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var(1) == 63);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var(2) == 62);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var(3) == 62);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var(~0ULL) == 0);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var((~0ULL) - 1) == 0);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var((~0ULL) >> 1) == 1);
+    CHECK(rustsecp256k1_v0_2_0_clz64_var((~0ULL) >> 2) == 2);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, INT64_MAX) == 0);
+    CHECK(r == INT64_MAX);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, INT64_MAX - 1) == 0);
+    CHECK(r == INT64_MAX - 1);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, INT64_MIN) == 1);
+    CHECK(r == (uint64_t)INT64_MAX + 1);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, INT64_MIN + 1) == 1);
+    CHECK(r == (uint64_t)INT64_MAX);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, 0) == 0);
+    CHECK(r == 0);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, 1) == 0);
+    CHECK(r == 1);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, -1) == 1);
+    CHECK(r == 1);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, 2) == 0);
+    CHECK(r == 2);
+    CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r, -2) == 1);
+    CHECK(r == 2);
+    for (i = 0; i < 10; i++) {
+        CHECK(rustsecp256k1_v0_2_0_clz64_var((~0ULL) - rustsecp256k1_v0_2_0_testrand32()) == 0);
+        r = ((uint64_t)rustsecp256k1_v0_2_0_testrand32() << 32) | rustsecp256k1_v0_2_0_testrand32();
+        r2 = rustsecp256k1_v0_2_0_testrandi64(0, r);
+        CHECK(r2 <= r);
+        r3 = rustsecp256k1_v0_2_0_testrandi64(r2, r);
+        CHECK((r3 >= r2) && (r3 <= r));
+        r = rustsecp256k1_v0_2_0_testrandi64(0, INT64_MAX);
+        s = (int64_t)r * (rustsecp256k1_v0_2_0_testrand32()&1?-1:1);
+        CHECK(rustsecp256k1_v0_2_0_sign_and_abs64(&r2, s) == (s < 0));
+        CHECK(r2 == r);
+    }
 }
 
 void run_context_tests(int use_prealloc) {
@@ -364,8 +411,8 @@ void run_scratch_tests(void) {
     CHECK(scratch->alloc_size != 0);
     CHECK(scratch->alloc_size % ALIGNMENT == 0);
 
-    /* Allocating another 500 bytes fails */
-    CHECK(rustsecp256k1_v0_2_0_scratch_alloc(&none->error_callback, scratch, 500) == NULL);
+    /* Allocating another 501 bytes fails */
+    CHECK(rustsecp256k1_v0_2_0_scratch_alloc(&none->error_callback, scratch, 501) == NULL);
     CHECK(rustsecp256k1_v0_2_0_scratch_max_allocation(&none->error_callback, scratch, 0) == 1000 - adj_alloc);
     CHECK(rustsecp256k1_v0_2_0_scratch_max_allocation(&none->error_callback, scratch, 1) == 1000 - adj_alloc - (ALIGNMENT - 1));
     CHECK(scratch->alloc_size != 0);
@@ -398,6 +445,18 @@ void run_scratch_tests(void) {
     rustsecp256k1_v0_2_0_scratch_space_destroy(none, scratch);
     CHECK(ecount == 5);
 
+    /* Test that large integers do not wrap around in a bad way */
+    scratch = rustsecp256k1_v0_2_0_scratch_space_create(none, 1000);
+    /* Try max allocation with a large number of objects. Only makes sense if
+     * ALIGNMENT is greater than 1 because otherwise the objects take no extra
+     * space. */
+    CHECK(ALIGNMENT <= 1 || !rustsecp256k1_v0_2_0_scratch_max_allocation(&none->error_callback, scratch, (SIZE_MAX / (ALIGNMENT - 1)) + 1));
+    /* Try allocating SIZE_MAX to test wrap around which only happens if
+     * ALIGNMENT > 1, otherwise it returns NULL anyway because the scratch
+     * space is too small. */
+    CHECK(rustsecp256k1_v0_2_0_scratch_alloc(&none->error_callback, scratch, SIZE_MAX) == NULL);
+    rustsecp256k1_v0_2_0_scratch_space_destroy(none, scratch);
+
     /* cleanup */
     rustsecp256k1_v0_2_0_scratch_space_destroy(none, NULL); /* no-op */
     rustsecp256k1_v0_2_0_context_destroy(none);
@@ -429,14 +488,14 @@ void run_sha256_tests(void) {
         rustsecp256k1_v0_2_0_sha256_initialize(&hasher);
         rustsecp256k1_v0_2_0_sha256_write(&hasher, (const unsigned char*)(inputs[i]), strlen(inputs[i]));
         rustsecp256k1_v0_2_0_sha256_finalize(&hasher, out);
-        CHECK(memcmp(out, outputs[i], 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, outputs[i], 32) == 0);
         if (strlen(inputs[i]) > 0) {
-            int split = rustsecp256k1_v0_2_0_rand_int(strlen(inputs[i]));
+            int split = rustsecp256k1_v0_2_0_testrand_int(strlen(inputs[i]));
             rustsecp256k1_v0_2_0_sha256_initialize(&hasher);
             rustsecp256k1_v0_2_0_sha256_write(&hasher, (const unsigned char*)(inputs[i]), split);
             rustsecp256k1_v0_2_0_sha256_write(&hasher, (const unsigned char*)(inputs[i] + split), strlen(inputs[i]) - split);
             rustsecp256k1_v0_2_0_sha256_finalize(&hasher, out);
-            CHECK(memcmp(out, outputs[i], 32) == 0);
+            CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, outputs[i], 32) == 0);
         }
     }
 }
@@ -473,14 +532,14 @@ void run_hmac_sha256_tests(void) {
         rustsecp256k1_v0_2_0_hmac_sha256_initialize(&hasher, (const unsigned char*)(keys[i]), strlen(keys[i]));
         rustsecp256k1_v0_2_0_hmac_sha256_write(&hasher, (const unsigned char*)(inputs[i]), strlen(inputs[i]));
         rustsecp256k1_v0_2_0_hmac_sha256_finalize(&hasher, out);
-        CHECK(memcmp(out, outputs[i], 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, outputs[i], 32) == 0);
         if (strlen(inputs[i]) > 0) {
-            int split = rustsecp256k1_v0_2_0_rand_int(strlen(inputs[i]));
+            int split = rustsecp256k1_v0_2_0_testrand_int(strlen(inputs[i]));
             rustsecp256k1_v0_2_0_hmac_sha256_initialize(&hasher, (const unsigned char*)(keys[i]), strlen(keys[i]));
             rustsecp256k1_v0_2_0_hmac_sha256_write(&hasher, (const unsigned char*)(inputs[i]), split);
             rustsecp256k1_v0_2_0_hmac_sha256_write(&hasher, (const unsigned char*)(inputs[i] + split), strlen(inputs[i]) - split);
             rustsecp256k1_v0_2_0_hmac_sha256_finalize(&hasher, out);
-            CHECK(memcmp(out, outputs[i], 32) == 0);
+            CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, outputs[i], 32) == 0);
         }
     }
 }
@@ -507,21 +566,21 @@ void run_rfc6979_hmac_sha256_tests(void) {
     rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_initialize(&rng, key1, 64);
     for (i = 0; i < 3; i++) {
         rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_generate(&rng, out, 32);
-        CHECK(memcmp(out, out1[i], 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, out1[i], 32) == 0);
     }
     rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_finalize(&rng);
 
     rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_initialize(&rng, key1, 65);
     for (i = 0; i < 3; i++) {
         rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_generate(&rng, out, 32);
-        CHECK(memcmp(out, out1[i], 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, out1[i], 32) != 0);
     }
     rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_finalize(&rng);
 
     rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_initialize(&rng, key2, 64);
     for (i = 0; i < 3; i++) {
         rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_generate(&rng, out, 32);
-        CHECK(memcmp(out, out2[i], 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(out, out2[i], 32) == 0);
     }
     rustsecp256k1_v0_2_0_rfc6979_hmac_sha256_finalize(&rng);
 }
@@ -545,7 +604,7 @@ void test_rand_bits(int rand32, int bits) {
     /* Multiply the output of all rand calls with the odd number m, which
        should not change the uniformity of its distribution. */
     for (i = 0; i < rounds[usebits]; i++) {
-        uint32_t r = (rand32 ? rustsecp256k1_v0_2_0_rand32() : rustsecp256k1_v0_2_0_rand_bits(bits));
+        uint32_t r = (rand32 ? rustsecp256k1_v0_2_0_testrand32() : rustsecp256k1_v0_2_0_testrand_bits(bits));
         CHECK((((uint64_t)r) >> bits) == 0);
         for (m = 0; m < sizeof(mults) / sizeof(mults[0]); m++) {
             uint32_t rm = r * mults[m];
@@ -570,7 +629,7 @@ void test_rand_int(uint32_t range, uint32_t subrange) {
     uint64_t x = 0;
     CHECK((range % subrange) == 0);
     for (i = 0; i < rounds; i++) {
-        uint32_t r = rustsecp256k1_v0_2_0_rand_int(range);
+        uint32_t r = rustsecp256k1_v0_2_0_testrand_int(range);
         CHECK(r < range);
         r = r % subrange;
         x |= (((uint64_t)1) << r);
@@ -602,7 +661,7 @@ void run_rand_int(void) {
 
 #ifndef USE_NUM_NONE
 void random_num_negate(rustsecp256k1_v0_2_0_num *num) {
-    if (rustsecp256k1_v0_2_0_rand_bits(1)) {
+    if (rustsecp256k1_v0_2_0_testrand_bits(1)) {
         rustsecp256k1_v0_2_0_num_negate(num);
     }
 }
@@ -646,11 +705,11 @@ void test_num_add_sub(void) {
     rustsecp256k1_v0_2_0_num n2;
     rustsecp256k1_v0_2_0_num n1p2, n2p1, n1m2, n2m1;
     random_num_order_test(&n1); /* n1 = R1 */
-    if (rustsecp256k1_v0_2_0_rand_bits(1)) {
+    if (rustsecp256k1_v0_2_0_testrand_bits(1)) {
         random_num_negate(&n1);
     }
     random_num_order_test(&n2); /* n2 = R2 */
-    if (rustsecp256k1_v0_2_0_rand_bits(1)) {
+    if (rustsecp256k1_v0_2_0_testrand_bits(1)) {
         random_num_negate(&n2);
     }
     rustsecp256k1_v0_2_0_num_add(&n1p2, &n1, &n2); /* n1p2 = R1 + R2 */
@@ -841,7 +900,7 @@ void scalar_test(void) {
         while (i < 256) {
             rustsecp256k1_v0_2_0_scalar t;
             int j;
-            int now = rustsecp256k1_v0_2_0_rand_int(15) + 1;
+            int now = rustsecp256k1_v0_2_0_testrand_int(15) + 1;
             if (now + i > 256) {
                 now = 256 - i;
             }
@@ -918,7 +977,7 @@ void scalar_test(void) {
         rustsecp256k1_v0_2_0_num rnum;
         rustsecp256k1_v0_2_0_num rnum2;
         unsigned char cone[1] = {0x01};
-        unsigned int shift = 256 + rustsecp256k1_v0_2_0_rand_int(257);
+        unsigned int shift = 256 + rustsecp256k1_v0_2_0_testrand_int(257);
         rustsecp256k1_v0_2_0_scalar_mul_shift_var(&r, &s1, &s2, shift);
         rustsecp256k1_v0_2_0_num_mul(&rnum, &s1num, &s2num);
         rustsecp256k1_v0_2_0_num_shift(&rnum, shift - 1);
@@ -936,7 +995,7 @@ void scalar_test(void) {
         random_scalar_order_test(&r);
         for (i = 0; i < 100; ++i) {
             int low;
-            int shift = 1 + rustsecp256k1_v0_2_0_rand_int(15);
+            int shift = 1 + rustsecp256k1_v0_2_0_testrand_int(15);
             int expected = r.d[0] % (1 << shift);
             low = rustsecp256k1_v0_2_0_scalar_shr_int(&r, shift);
             CHECK(expected == low);
@@ -984,7 +1043,7 @@ void scalar_test(void) {
         rustsecp256k1_v0_2_0_scalar b;
         int i;
         /* Test add_bit. */
-        int bit = rustsecp256k1_v0_2_0_rand_bits(8);
+        int bit = rustsecp256k1_v0_2_0_testrand_bits(8);
         rustsecp256k1_v0_2_0_scalar_set_int(&b, 1);
         CHECK(rustsecp256k1_v0_2_0_scalar_is_one(&b));
         for (i = 0; i < bit; i++) {
@@ -1092,6 +1151,114 @@ void run_scalar_set_b32_seckey_tests(void) {
     CHECK(rustsecp256k1_v0_2_0_scalar_set_b32_seckey(&s2, b32) == 0);
 }
 
+void scalar_chacha_tests(void) {
+    /* Test vectors 1 to 4 from https://tools.ietf.org/html/rfc8439#appendix-A
+     * Note that scalar_set_b32 and scalar_get_b32 represent integers
+     * underlying the scalar in big-endian format. */
+    unsigned char expected1[64] = {
+        0xad, 0xe0, 0xb8, 0x76, 0x90, 0x3d, 0xf1, 0xa0,
+        0xe5, 0x6a, 0x5d, 0x40, 0x28, 0xbd, 0x86, 0x53,
+        0xb8, 0x19, 0xd2, 0xbd, 0x1a, 0xed, 0x8d, 0xa0,
+        0xcc, 0xef, 0x36, 0xa8, 0xc7, 0x0d, 0x77, 0x8b,
+        0x7c, 0x59, 0x41, 0xda, 0x8d, 0x48, 0x57, 0x51,
+        0x3f, 0xe0, 0x24, 0x77, 0x37, 0x4a, 0xd8, 0xb8,
+        0xf4, 0xb8, 0x43, 0x6a, 0x1c, 0xa1, 0x18, 0x15,
+        0x69, 0xb6, 0x87, 0xc3, 0x86, 0x65, 0xee, 0xb2
+    };
+    unsigned char expected2[64] = {
+        0xbe, 0xe7, 0x07, 0x9f, 0x7a, 0x38, 0x51, 0x55,
+        0x7c, 0x97, 0xba, 0x98, 0x0d, 0x08, 0x2d, 0x73,
+        0xa0, 0x29, 0x0f, 0xcb, 0x69, 0x65, 0xe3, 0x48,
+        0x3e, 0x53, 0xc6, 0x12, 0xed, 0x7a, 0xee, 0x32,
+        0x76, 0x21, 0xb7, 0x29, 0x43, 0x4e, 0xe6, 0x9c,
+        0xb0, 0x33, 0x71, 0xd5, 0xd5, 0x39, 0xd8, 0x74,
+        0x28, 0x1f, 0xed, 0x31, 0x45, 0xfb, 0x0a, 0x51,
+        0x1f, 0x0a, 0xe1, 0xac, 0x6f, 0x4d, 0x79, 0x4b
+    };
+    unsigned char seed3[32] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+    };
+    unsigned char expected3[64] = {
+        0x24, 0x52, 0xeb, 0x3a, 0x92, 0x49, 0xf8, 0xec,
+        0x8d, 0x82, 0x9d, 0x9b, 0xdd, 0xd4, 0xce, 0xb1,
+        0xe8, 0x25, 0x20, 0x83, 0x60, 0x81, 0x8b, 0x01,
+        0xf3, 0x84, 0x22, 0xb8, 0x5a, 0xaa, 0x49, 0xc9,
+        0xbb, 0x00, 0xca, 0x8e, 0xda, 0x3b, 0xa7, 0xb4,
+        0xc4, 0xb5, 0x92, 0xd1, 0xfd, 0xf2, 0x73, 0x2f,
+        0x44, 0x36, 0x27, 0x4e, 0x25, 0x61, 0xb3, 0xc8,
+        0xeb, 0xdd, 0x4a, 0xa6, 0xa0, 0x13, 0x6c, 0x00
+    };
+    unsigned char seed4[32] = {
+        0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    unsigned char expected4[64] = {
+        0xfb, 0x4d, 0xd5, 0x72, 0x4b, 0xc4, 0x2e, 0xf1,
+        0xdf, 0x92, 0x26, 0x36, 0x32, 0x7f, 0x13, 0x94,
+        0xa7, 0x8d, 0xea, 0x8f, 0x5e, 0x26, 0x90, 0x39,
+        0xa1, 0xbe, 0xbb, 0xc1, 0xca, 0xf0, 0x9a, 0xae,
+        0xa2, 0x5a, 0xb2, 0x13, 0x48, 0xa6, 0xb4, 0x6c,
+        0x1b, 0x9d, 0x9b, 0xcb, 0x09, 0x2c, 0x5b, 0xe6,
+        0x54, 0x6c, 0xa6, 0x24, 0x1b, 0xec, 0x45, 0xd5,
+        0x87, 0xf4, 0x74, 0x73, 0x96, 0xf0, 0x99, 0x2e
+    };
+    unsigned char seed5[32] = {
+        0x32, 0x56, 0x56, 0xf4, 0x29, 0x02, 0xc2, 0xf8,
+        0xa3, 0x4b, 0x96, 0xf5, 0xa7, 0xf7, 0xe3, 0x6c,
+        0x92, 0xad, 0xa5, 0x18, 0x1c, 0xe3, 0x41, 0xae,
+        0xc3, 0xf3, 0x18, 0xd0, 0xfa, 0x5b, 0x72, 0x53
+    };
+    unsigned char expected5[64] = {
+        0xe7, 0x56, 0xd3, 0x28, 0xe9, 0xc6, 0x19, 0x5c,
+        0x6f, 0x17, 0x8e, 0x21, 0x8c, 0x1e, 0x72, 0x11,
+        0xe7, 0xbd, 0x17, 0x0d, 0xac, 0x14, 0xad, 0xe9,
+        0x3d, 0x9f, 0xb6, 0x92, 0xd6, 0x09, 0x20, 0xfb,
+        0x43, 0x8e, 0x3b, 0x6d, 0xe3, 0x33, 0xdc, 0xc7,
+        0x6c, 0x07, 0x6f, 0xbb, 0x1f, 0xb4, 0xc8, 0xb5,
+        0xe3, 0x6c, 0xe5, 0x12, 0xd9, 0xd7, 0x64, 0x0c,
+        0xf5, 0xa7, 0x0d, 0xab, 0x79, 0x03, 0xf1, 0x81
+    };
+
+    rustsecp256k1_v0_2_0_scalar exp_r1, exp_r2;
+    rustsecp256k1_v0_2_0_scalar r1, r2;
+    unsigned char seed0[32] = { 0 };
+
+    rustsecp256k1_v0_2_0_scalar_chacha20(&r1, &r2, seed0, 0);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r1, &expected1[0], NULL);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r2, &expected1[32], NULL);
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r1, &r1));
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r2, &r2));
+
+    rustsecp256k1_v0_2_0_scalar_chacha20(&r1, &r2, seed0, 1);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r1, &expected2[0], NULL);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r2, &expected2[32], NULL);
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r1, &r1));
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r2, &r2));
+
+    rustsecp256k1_v0_2_0_scalar_chacha20(&r1, &r2, seed3, 1);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r1, &expected3[0], NULL);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r2, &expected3[32], NULL);
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r1, &r1));
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r2, &r2));
+
+    rustsecp256k1_v0_2_0_scalar_chacha20(&r1, &r2, seed4, 2);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r1, &expected4[0], NULL);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r2, &expected4[32], NULL);
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r1, &r1));
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r2, &r2));
+
+    rustsecp256k1_v0_2_0_scalar_chacha20(&r1, &r2, seed5, 0x6ff8602a7a78e2f2ULL);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r1, &expected5[0], NULL);
+    rustsecp256k1_v0_2_0_scalar_set_b32(&exp_r2, &expected5[32], NULL);
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r1, &r1));
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&exp_r2, &r2));
+}
+
 void run_scalar_tests(void) {
     int i;
     for (i = 0; i < 128 * count; i++) {
@@ -1100,6 +1267,8 @@ void run_scalar_tests(void) {
     for (i = 0; i < count; i++) {
         run_scalar_set_b32_seckey_tests();
     }
+
+    scalar_chacha_tests();
 
     {
         /* (-1)+1 should be zero. */
@@ -1145,7 +1314,7 @@ void run_scalar_tests(void) {
         rustsecp256k1_v0_2_0_scalar_set_b32(&scalar, bin, &overflow);
         CHECK(overflow == 0);
         rustsecp256k1_v0_2_0_scalar_get_b32(bin_tmp, &scalar);
-        CHECK(memcmp(bin, bin_tmp, 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(bin, bin_tmp, 32) == 0);
 
         /* A scalar set to all 1s should overflow. */
         memset(bin, 0xFF, 32);
@@ -1755,7 +1924,7 @@ void run_scalar_tests(void) {
 void random_fe(rustsecp256k1_v0_2_0_fe *x) {
     unsigned char bin[32];
     do {
-        rustsecp256k1_v0_2_0_rand256(bin);
+        rustsecp256k1_v0_2_0_testrand256(bin);
         if (rustsecp256k1_v0_2_0_fe_set_b32(x, bin)) {
             return;
         }
@@ -1765,7 +1934,7 @@ void random_fe(rustsecp256k1_v0_2_0_fe *x) {
 void random_fe_test(rustsecp256k1_v0_2_0_fe *x) {
     unsigned char bin[32];
     do {
-        rustsecp256k1_v0_2_0_rand256_test(bin);
+        rustsecp256k1_v0_2_0_testrand256_test(bin);
         if (rustsecp256k1_v0_2_0_fe_set_b32(x, bin)) {
             return;
         }
@@ -1833,18 +2002,18 @@ void run_field_convert(void) {
     CHECK(rustsecp256k1_v0_2_0_fe_equal_var(&fe, &fe2));
     /* Check conversion from fe. */
     rustsecp256k1_v0_2_0_fe_get_b32(b322, &fe);
-    CHECK(memcmp(b322, b32, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(b322, b32, 32) == 0);
     rustsecp256k1_v0_2_0_fe_to_storage(&fes2, &fe);
-    CHECK(memcmp(&fes2, &fes, sizeof(fes)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&fes2, &fes, sizeof(fes)) == 0);
 }
 
-int fe_memcmp(const rustsecp256k1_v0_2_0_fe *a, const rustsecp256k1_v0_2_0_fe *b) {
+int fe_rustsecp256k1_v0_2_0_memcmp_var(const rustsecp256k1_v0_2_0_fe *a, const rustsecp256k1_v0_2_0_fe *b) {
     rustsecp256k1_v0_2_0_fe t = *b;
 #ifdef VERIFY
     t.magnitude = a->magnitude;
     t.normalized = a->normalized;
 #endif
-    return memcmp(a, &t, sizeof(rustsecp256k1_v0_2_0_fe));
+    return rustsecp256k1_v0_2_0_memcmp_var(a, &t, sizeof(rustsecp256k1_v0_2_0_fe));
 }
 
 void run_field_misc(void) {
@@ -1870,13 +2039,13 @@ void run_field_misc(void) {
         CHECK(x.normalized && x.magnitude == 1);
 #endif
         rustsecp256k1_v0_2_0_fe_cmov(&x, &x, 1);
-        CHECK(fe_memcmp(&x, &z) != 0);
-        CHECK(fe_memcmp(&x, &q) == 0);
+        CHECK(fe_rustsecp256k1_v0_2_0_memcmp_var(&x, &z) != 0);
+        CHECK(fe_rustsecp256k1_v0_2_0_memcmp_var(&x, &q) == 0);
         rustsecp256k1_v0_2_0_fe_cmov(&q, &z, 1);
 #ifdef VERIFY
         CHECK(!q.normalized && q.magnitude == z.magnitude);
 #endif
-        CHECK(fe_memcmp(&q, &z) == 0);
+        CHECK(fe_rustsecp256k1_v0_2_0_memcmp_var(&q, &z) == 0);
         rustsecp256k1_v0_2_0_fe_normalize_var(&x);
         rustsecp256k1_v0_2_0_fe_normalize_var(&z);
         CHECK(!rustsecp256k1_v0_2_0_fe_equal_var(&x, &z));
@@ -1900,9 +2069,9 @@ void run_field_misc(void) {
         rustsecp256k1_v0_2_0_fe_to_storage(&zs, &z);
         rustsecp256k1_v0_2_0_fe_storage_cmov(&zs, &xs, 0);
         rustsecp256k1_v0_2_0_fe_storage_cmov(&zs, &zs, 1);
-        CHECK(memcmp(&xs, &zs, sizeof(xs)) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&xs, &zs, sizeof(xs)) != 0);
         rustsecp256k1_v0_2_0_fe_storage_cmov(&ys, &xs, 1);
-        CHECK(memcmp(&xs, &ys, sizeof(xs)) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&xs, &ys, sizeof(xs)) == 0);
         rustsecp256k1_v0_2_0_fe_from_storage(&x, &xs);
         rustsecp256k1_v0_2_0_fe_from_storage(&y, &ys);
         rustsecp256k1_v0_2_0_fe_from_storage(&z, &zs);
@@ -1958,7 +2127,7 @@ void run_field_inv_all_var(void) {
     rustsecp256k1_v0_2_0_fe_inv_all_var(xi, x, 0);
     for (i = 0; i < count; i++) {
         size_t j;
-        size_t len = rustsecp256k1_v0_2_0_rand_int(15) + 1;
+        size_t len = rustsecp256k1_v0_2_0_testrand_int(15) + 1;
         for (j = 0; j < len; j++) {
             random_fe_non_zero(&x[j]);
         }
@@ -2089,17 +2258,12 @@ void ge_equals_gej(const rustsecp256k1_v0_2_0_ge *a, const rustsecp256k1_v0_2_0_
 
 void test_ge(void) {
     int i, i1;
-#ifdef USE_ENDOMORPHISM
     int runs = 6;
-#else
-    int runs = 4;
-#endif
-    /* Points: (infinity, p1, p1, -p1, -p1, p2, p2, -p2, -p2, p3, p3, -p3, -p3, p4, p4, -p4, -p4).
-     * The second in each pair of identical points uses a random Z coordinate in the Jacobian form.
-     * All magnitudes are randomized.
-     * All 17*17 combinations of points are added to each other, using all applicable methods.
-     *
-     * When the endomorphism code is compiled in, p5 = lambda*p1 and p6 = lambda^2*p1 are added as well.
+    /* 25 points are used:
+     * - infinity
+     * - for each of four random points p1 p2 p3 p4, we add the point, its
+     *   negation, and then those two again but with randomized Z coordinate.
+     * - The same is then done for lambda*p1 and lambda^2*p1.
      */
     rustsecp256k1_v0_2_0_ge *ge = (rustsecp256k1_v0_2_0_ge *)checked_malloc(&ctx->error_callback, sizeof(rustsecp256k1_v0_2_0_ge) * (1 + 4 * runs));
     rustsecp256k1_v0_2_0_gej *gej = (rustsecp256k1_v0_2_0_gej *)checked_malloc(&ctx->error_callback, sizeof(rustsecp256k1_v0_2_0_gej) * (1 + 4 * runs));
@@ -2114,14 +2278,12 @@ void test_ge(void) {
         int j;
         rustsecp256k1_v0_2_0_ge g;
         random_group_element_test(&g);
-#ifdef USE_ENDOMORPHISM
         if (i >= runs - 2) {
             rustsecp256k1_v0_2_0_ge_mul_lambda(&g, &ge[1]);
         }
         if (i >= runs - 1) {
             rustsecp256k1_v0_2_0_ge_mul_lambda(&g, &g);
         }
-#endif
         ge[1 + 4 * i] = g;
         ge[2 + 4 * i] = g;
         rustsecp256k1_v0_2_0_ge_neg(&ge[3 + 4 * i], &g);
@@ -2250,7 +2412,7 @@ void test_ge(void) {
             gej_shuffled[i] = gej[i];
         }
         for (i = 0; i < 4 * runs + 1; i++) {
-            int swap = i + rustsecp256k1_v0_2_0_rand_int(4 * runs + 1 - i);
+            int swap = i + rustsecp256k1_v0_2_0_testrand_int(4 * runs + 1 - i);
             if (swap != i) {
                 rustsecp256k1_v0_2_0_gej t = gej_shuffled[i];
                 gej_shuffled[i] = gej_shuffled[swap];
@@ -2304,6 +2466,39 @@ void test_ge(void) {
     free(ge);
     free(gej);
     free(zinv);
+}
+
+
+void test_intialized_inf(void) {
+    rustsecp256k1_v0_2_0_ge p;
+    rustsecp256k1_v0_2_0_gej pj, npj, infj1, infj2, infj3;
+    rustsecp256k1_v0_2_0_fe zinv;
+
+    /* Test that adding P+(-P) results in a fully initalized infinity*/
+    random_group_element_test(&p);
+    rustsecp256k1_v0_2_0_gej_set_ge(&pj, &p);
+    rustsecp256k1_v0_2_0_gej_neg(&npj, &pj);
+
+    rustsecp256k1_v0_2_0_gej_add_var(&infj1, &pj, &npj, NULL);
+    CHECK(rustsecp256k1_v0_2_0_gej_is_infinity(&infj1));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj1.x));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj1.y));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj1.z));
+
+    rustsecp256k1_v0_2_0_gej_add_ge_var(&infj2, &npj, &p, NULL);
+    CHECK(rustsecp256k1_v0_2_0_gej_is_infinity(&infj2));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj2.x));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj2.y));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj2.z));
+
+    rustsecp256k1_v0_2_0_fe_set_int(&zinv, 1);
+    rustsecp256k1_v0_2_0_gej_add_zinv_var(&infj3, &npj, &p, &zinv);
+    CHECK(rustsecp256k1_v0_2_0_gej_is_infinity(&infj3));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj3.x));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj3.y));
+    CHECK(rustsecp256k1_v0_2_0_fe_is_zero(&infj3.z));
+
+
 }
 
 void test_add_neg_y_diff_x(void) {
@@ -2379,6 +2574,7 @@ void run_ge(void) {
         test_ge();
     }
     test_add_neg_y_diff_x();
+    test_intialized_inf();
 }
 
 void test_ec_combine(void) {
@@ -2402,7 +2598,7 @@ void test_ec_combine(void) {
         rustsecp256k1_v0_2_0_ge_set_gej(&Q, &Qj);
         rustsecp256k1_v0_2_0_pubkey_save(&sd, &Q);
         CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &sd2, d, i) == 1);
-        CHECK(memcmp(&sd, &sd2, sizeof(sd)) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&sd, &sd2, sizeof(sd)) == 0);
     }
 }
 
@@ -2568,7 +2764,6 @@ void test_point_times_order(const rustsecp256k1_v0_2_0_gej *point) {
     rustsecp256k1_v0_2_0_ecmult(&ctx->ecmult_ctx, &res2, point, &nx, &nx); /* calc res2 = (order - x) * point + (order - x) * G; */
     rustsecp256k1_v0_2_0_gej_add_var(&res1, &res1, &res2, NULL);
     CHECK(rustsecp256k1_v0_2_0_gej_is_infinity(&res1));
-    CHECK(rustsecp256k1_v0_2_0_gej_is_valid_var(&res1) == 0);
     rustsecp256k1_v0_2_0_ge_set_gej(&res3, &res1);
     CHECK(rustsecp256k1_v0_2_0_ge_is_infinity(&res3));
     CHECK(rustsecp256k1_v0_2_0_ge_is_valid_var(&res3) == 0);
@@ -2587,6 +2782,87 @@ void test_point_times_order(const rustsecp256k1_v0_2_0_gej *point) {
     ge_equals_ge(&res3, &rustsecp256k1_v0_2_0_ge_const_g);
 }
 
+/* These scalars reach large (in absolute value) outputs when fed to rustsecp256k1_v0_2_0_scalar_split_lambda.
+ *
+ * They are computed as:
+ * - For a in [-2, -1, 0, 1, 2]:
+ *   - For b in [-3, -1, 1, 3]:
+ *     - Output (a*LAMBDA + (ORDER+b)/2) % ORDER
+ */
+static const rustsecp256k1_v0_2_0_scalar scalars_near_split_bounds[20] = {
+    SECP256K1_SCALAR_CONST(0xd938a566, 0x7f479e3e, 0xb5b3c7fa, 0xefdb3749, 0x3aa0585c, 0xc5ea2367, 0xe1b660db, 0x0209e6fc),
+    SECP256K1_SCALAR_CONST(0xd938a566, 0x7f479e3e, 0xb5b3c7fa, 0xefdb3749, 0x3aa0585c, 0xc5ea2367, 0xe1b660db, 0x0209e6fd),
+    SECP256K1_SCALAR_CONST(0xd938a566, 0x7f479e3e, 0xb5b3c7fa, 0xefdb3749, 0x3aa0585c, 0xc5ea2367, 0xe1b660db, 0x0209e6fe),
+    SECP256K1_SCALAR_CONST(0xd938a566, 0x7f479e3e, 0xb5b3c7fa, 0xefdb3749, 0x3aa0585c, 0xc5ea2367, 0xe1b660db, 0x0209e6ff),
+    SECP256K1_SCALAR_CONST(0x2c9c52b3, 0x3fa3cf1f, 0x5ad9e3fd, 0x77ed9ba5, 0xb294b893, 0x3722e9a5, 0x00e698ca, 0x4cf7632d),
+    SECP256K1_SCALAR_CONST(0x2c9c52b3, 0x3fa3cf1f, 0x5ad9e3fd, 0x77ed9ba5, 0xb294b893, 0x3722e9a5, 0x00e698ca, 0x4cf7632e),
+    SECP256K1_SCALAR_CONST(0x2c9c52b3, 0x3fa3cf1f, 0x5ad9e3fd, 0x77ed9ba5, 0xb294b893, 0x3722e9a5, 0x00e698ca, 0x4cf7632f),
+    SECP256K1_SCALAR_CONST(0x2c9c52b3, 0x3fa3cf1f, 0x5ad9e3fd, 0x77ed9ba5, 0xb294b893, 0x3722e9a5, 0x00e698ca, 0x4cf76330),
+    SECP256K1_SCALAR_CONST(0x7fffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xd576e735, 0x57a4501d, 0xdfe92f46, 0x681b209f),
+    SECP256K1_SCALAR_CONST(0x7fffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xd576e735, 0x57a4501d, 0xdfe92f46, 0x681b20a0),
+    SECP256K1_SCALAR_CONST(0x7fffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xd576e735, 0x57a4501d, 0xdfe92f46, 0x681b20a1),
+    SECP256K1_SCALAR_CONST(0x7fffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xd576e735, 0x57a4501d, 0xdfe92f46, 0x681b20a2),
+    SECP256K1_SCALAR_CONST(0xd363ad4c, 0xc05c30e0, 0xa5261c02, 0x88126459, 0xf85915d7, 0x7825b696, 0xbeebc5c2, 0x833ede11),
+    SECP256K1_SCALAR_CONST(0xd363ad4c, 0xc05c30e0, 0xa5261c02, 0x88126459, 0xf85915d7, 0x7825b696, 0xbeebc5c2, 0x833ede12),
+    SECP256K1_SCALAR_CONST(0xd363ad4c, 0xc05c30e0, 0xa5261c02, 0x88126459, 0xf85915d7, 0x7825b696, 0xbeebc5c2, 0x833ede13),
+    SECP256K1_SCALAR_CONST(0xd363ad4c, 0xc05c30e0, 0xa5261c02, 0x88126459, 0xf85915d7, 0x7825b696, 0xbeebc5c2, 0x833ede14),
+    SECP256K1_SCALAR_CONST(0x26c75a99, 0x80b861c1, 0x4a4c3805, 0x1024c8b4, 0x704d760e, 0xe95e7cd3, 0xde1bfdb1, 0xce2c5a42),
+    SECP256K1_SCALAR_CONST(0x26c75a99, 0x80b861c1, 0x4a4c3805, 0x1024c8b4, 0x704d760e, 0xe95e7cd3, 0xde1bfdb1, 0xce2c5a43),
+    SECP256K1_SCALAR_CONST(0x26c75a99, 0x80b861c1, 0x4a4c3805, 0x1024c8b4, 0x704d760e, 0xe95e7cd3, 0xde1bfdb1, 0xce2c5a44),
+    SECP256K1_SCALAR_CONST(0x26c75a99, 0x80b861c1, 0x4a4c3805, 0x1024c8b4, 0x704d760e, 0xe95e7cd3, 0xde1bfdb1, 0xce2c5a45)
+};
+
+void test_ecmult_target(const rustsecp256k1_v0_2_0_scalar* target, int mode) {
+    /* Mode: 0=ecmult_gen, 1=ecmult, 2=ecmult_const */
+    rustsecp256k1_v0_2_0_scalar n1, n2;
+    rustsecp256k1_v0_2_0_ge p;
+    rustsecp256k1_v0_2_0_gej pj, p1j, p2j, ptj;
+    static const rustsecp256k1_v0_2_0_scalar zero = SECP256K1_SCALAR_CONST(0, 0, 0, 0, 0, 0, 0, 0);
+
+    /* Generate random n1,n2 such that n1+n2 = -target. */
+    random_scalar_order_test(&n1);
+    rustsecp256k1_v0_2_0_scalar_add(&n2, &n1, target);
+    rustsecp256k1_v0_2_0_scalar_negate(&n2, &n2);
+
+    /* Generate a random input point. */
+    if (mode != 0) {
+        random_group_element_test(&p);
+        rustsecp256k1_v0_2_0_gej_set_ge(&pj, &p);
+    }
+
+    /* EC multiplications */
+    if (mode == 0) {
+        rustsecp256k1_v0_2_0_ecmult_gen(&ctx->ecmult_gen_ctx, &p1j, &n1);
+        rustsecp256k1_v0_2_0_ecmult_gen(&ctx->ecmult_gen_ctx, &p2j, &n2);
+        rustsecp256k1_v0_2_0_ecmult_gen(&ctx->ecmult_gen_ctx, &ptj, target);
+    } else if (mode == 1) {
+        rustsecp256k1_v0_2_0_ecmult(&ctx->ecmult_ctx, &p1j, &pj, &n1, &zero);
+        rustsecp256k1_v0_2_0_ecmult(&ctx->ecmult_ctx, &p2j, &pj, &n2, &zero);
+        rustsecp256k1_v0_2_0_ecmult(&ctx->ecmult_ctx, &ptj, &pj, target, &zero);
+    } else {
+        rustsecp256k1_v0_2_0_ecmult_const(&p1j, &p, &n1, 256);
+        rustsecp256k1_v0_2_0_ecmult_const(&p2j, &p, &n2, 256);
+        rustsecp256k1_v0_2_0_ecmult_const(&ptj, &p, target, 256);
+    }
+
+    /* Add them all up: n1*P + n2*P + target*P = (n1+n2+target)*P = (n1+n1-n1-n2)*P = 0. */
+    rustsecp256k1_v0_2_0_gej_add_var(&ptj, &ptj, &p1j, NULL);
+    rustsecp256k1_v0_2_0_gej_add_var(&ptj, &ptj, &p2j, NULL);
+    CHECK(rustsecp256k1_v0_2_0_gej_is_infinity(&ptj));
+}
+
+void run_ecmult_near_split_bound(void) {
+    int i;
+    unsigned j;
+    for (i = 0; i < 4*count; ++i) {
+        for (j = 0; j < sizeof(scalars_near_split_bounds) / sizeof(scalars_near_split_bounds[0]); ++j) {
+            test_ecmult_target(&scalars_near_split_bounds[j], 0);
+            test_ecmult_target(&scalars_near_split_bounds[j], 1);
+            test_ecmult_target(&scalars_near_split_bounds[j], 2);
+        }
+    }
+}
+
 void run_point_times_order(void) {
     int i;
     rustsecp256k1_v0_2_0_fe x = SECP256K1_FE_CONST(0, 0, 0, 0, 0, 0, 0, 2);
@@ -2600,7 +2876,6 @@ void run_point_times_order(void) {
             rustsecp256k1_v0_2_0_gej j;
             CHECK(rustsecp256k1_v0_2_0_ge_is_valid_var(&p));
             rustsecp256k1_v0_2_0_gej_set_ge(&j, &p);
-            CHECK(rustsecp256k1_v0_2_0_gej_is_valid_var(&j));
             test_point_times_order(&j);
         }
         rustsecp256k1_v0_2_0_fe_sqr(&x, &x);
@@ -2996,12 +3271,10 @@ void test_rustsecp256k1_v0_2_0_pippenger_bucket_window_inv(void) {
 
     CHECK(rustsecp256k1_v0_2_0_pippenger_bucket_window_inv(0) == 0);
     for(i = 1; i <= PIPPENGER_MAX_BUCKET_WINDOW; i++) {
-#ifdef USE_ENDOMORPHISM
         /* Bucket_window of 8 is not used with endo */
         if (i == 8) {
             continue;
         }
-#endif
         CHECK(rustsecp256k1_v0_2_0_pippenger_bucket_window(rustsecp256k1_v0_2_0_pippenger_bucket_window_inv(i)) == i);
         if (i != PIPPENGER_MAX_BUCKET_WINDOW) {
             CHECK(rustsecp256k1_v0_2_0_pippenger_bucket_window(rustsecp256k1_v0_2_0_pippenger_bucket_window_inv(i)+1) > i);
@@ -3014,7 +3287,7 @@ void test_rustsecp256k1_v0_2_0_pippenger_bucket_window_inv(void) {
  * for a given scratch space.
  */
 void test_ecmult_multi_pippenger_max_points(void) {
-    size_t scratch_size = rustsecp256k1_v0_2_0_rand_int(256);
+    size_t scratch_size = rustsecp256k1_v0_2_0_testrand_int(256);
     size_t max_size = rustsecp256k1_v0_2_0_pippenger_scratch_size(rustsecp256k1_v0_2_0_pippenger_bucket_window_inv(PIPPENGER_MAX_BUCKET_WINDOW-1)+512, 12);
     rustsecp256k1_v0_2_0_scratch *scratch;
     size_t n_points_supported;
@@ -3244,13 +3517,10 @@ void test_constant_wnaf(const rustsecp256k1_v0_2_0_scalar *number, int w) {
 
     rustsecp256k1_v0_2_0_scalar_set_int(&x, 0);
     rustsecp256k1_v0_2_0_scalar_set_int(&shift, 1 << w);
-    /* With USE_ENDOMORPHISM on we only consider 128-bit numbers */
-#ifdef USE_ENDOMORPHISM
     for (i = 0; i < 16; ++i) {
         rustsecp256k1_v0_2_0_scalar_shr_int(&num, 8);
     }
     bits = 128;
-#endif
     skew = rustsecp256k1_v0_2_0_wnaf_const(wnaf, &num, w, bits);
 
     for (i = WNAF_SIZE_BITS(bits, w); i >= 0; --i) {
@@ -3285,12 +3555,9 @@ void test_fixed_wnaf(const rustsecp256k1_v0_2_0_scalar *number, int w) {
 
     rustsecp256k1_v0_2_0_scalar_set_int(&x, 0);
     rustsecp256k1_v0_2_0_scalar_set_int(&shift, 1 << w);
-    /* With USE_ENDOMORPHISM on we only consider 128-bit numbers */
-#ifdef USE_ENDOMORPHISM
     for (i = 0; i < 16; ++i) {
         rustsecp256k1_v0_2_0_scalar_shr_int(&num, 8);
     }
-#endif
     skew = rustsecp256k1_v0_2_0_wnaf_fixed(wnaf, &num, w);
 
     for (i = WNAF_SIZE(w)-1; i >= 0; --i) {
@@ -3474,7 +3741,7 @@ void test_ecmult_gen_blind(void) {
     rustsecp256k1_v0_2_0_ge pge;
     random_scalar_order_test(&key);
     rustsecp256k1_v0_2_0_ecmult_gen(&ctx->ecmult_gen_ctx, &pgej, &key);
-    rustsecp256k1_v0_2_0_rand256(seed32);
+    rustsecp256k1_v0_2_0_testrand256(seed32);
     b = ctx->ecmult_gen_ctx.blind;
     i = ctx->ecmult_gen_ctx.initial;
     rustsecp256k1_v0_2_0_ecmult_gen_blind(&ctx->ecmult_gen_ctx, seed32);
@@ -3506,16 +3773,18 @@ void run_ecmult_gen_blind(void) {
     }
 }
 
-#ifdef USE_ENDOMORPHISM
 /***** ENDOMORPHISH TESTS *****/
-void test_scalar_split(void) {
-    rustsecp256k1_v0_2_0_scalar full;
-    rustsecp256k1_v0_2_0_scalar s1, slam;
+void test_scalar_split(const rustsecp256k1_v0_2_0_scalar* full) {
+    rustsecp256k1_v0_2_0_scalar s, s1, slam;
     const unsigned char zero[32] = {0};
     unsigned char tmp[32];
 
-    random_scalar_order_test(&full);
-    rustsecp256k1_v0_2_0_scalar_split_lambda(&s1, &slam, &full);
+    rustsecp256k1_v0_2_0_scalar_split_lambda(&s1, &slam, full);
+
+    /* check slam*lambda + s1 == full */
+    rustsecp256k1_v0_2_0_scalar_mul(&s, &rustsecp256k1_v0_2_0_const_lambda, &slam);
+    rustsecp256k1_v0_2_0_scalar_add(&s, &s, &s1);
+    CHECK(rustsecp256k1_v0_2_0_scalar_eq(&s, full));
 
     /* check that both are <= 128 bits in size */
     if (rustsecp256k1_v0_2_0_scalar_is_high(&s1)) {
@@ -3526,15 +3795,32 @@ void test_scalar_split(void) {
     }
 
     rustsecp256k1_v0_2_0_scalar_get_b32(tmp, &s1);
-    CHECK(memcmp(zero, tmp, 16) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zero, tmp, 16) == 0);
     rustsecp256k1_v0_2_0_scalar_get_b32(tmp, &slam);
-    CHECK(memcmp(zero, tmp, 16) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zero, tmp, 16) == 0);
 }
 
+
 void run_endomorphism_tests(void) {
-    test_scalar_split();
+    unsigned i;
+    static rustsecp256k1_v0_2_0_scalar s;
+    test_scalar_split(&rustsecp256k1_v0_2_0_scalar_zero);
+    test_scalar_split(&rustsecp256k1_v0_2_0_scalar_one);
+    rustsecp256k1_v0_2_0_scalar_negate(&s,&rustsecp256k1_v0_2_0_scalar_one);
+    test_scalar_split(&s);
+    test_scalar_split(&rustsecp256k1_v0_2_0_const_lambda);
+    rustsecp256k1_v0_2_0_scalar_add(&s, &rustsecp256k1_v0_2_0_const_lambda, &rustsecp256k1_v0_2_0_scalar_one);
+    test_scalar_split(&s);
+
+    for (i = 0; i < 100U * count; ++i) {
+        rustsecp256k1_v0_2_0_scalar full;
+        random_scalar_order_test(&full);
+        test_scalar_split(&full);
+    }
+    for (i = 0; i < sizeof(scalars_near_split_bounds) / sizeof(scalars_near_split_bounds[0]); ++i) {
+        test_scalar_split(&scalars_near_split_bounds[i]);
+    }
 }
-#endif
 
 void ec_pubkey_parse_pointtest(const unsigned char *input, int xvalid, int yvalid) {
     unsigned char pubkeyc[65];
@@ -3576,7 +3862,7 @@ void ec_pubkey_parse_pointtest(const unsigned char *input, int xvalid, int yvali
                 CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, pubkeyo, &outl, &pubkey, SECP256K1_EC_COMPRESSED) == 1);
                 VG_CHECK(pubkeyo, outl);
                 CHECK(outl == 33);
-                CHECK(memcmp(&pubkeyo[1], &pubkeyc[1], 32) == 0);
+                CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkeyo[1], &pubkeyc[1], 32) == 0);
                 CHECK((pubkeyclen != 33) || (pubkeyo[0] == pubkeyc[0]));
                 if (ypass) {
                     /* This test isn't always done because we decode with alternative signs, so the y won't match. */
@@ -3592,7 +3878,7 @@ void ec_pubkey_parse_pointtest(const unsigned char *input, int xvalid, int yvali
                     VG_CHECK(pubkeyo, outl);
                     CHECK(outl == 65);
                     CHECK(pubkeyo[0] == 4);
-                    CHECK(memcmp(&pubkeyo[1], input, 64) == 0);
+                    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkeyo[1], input, 64) == 0);
                 }
                 CHECK(ecount == 0);
             } else {
@@ -3961,7 +4247,7 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, orderc) == 0);
     VG_CHECK(&pubkey, sizeof(pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     /* Maximum value is too large, reject. */
     memset(ctmp, 255, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp) == 0);
@@ -3969,7 +4255,7 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, ctmp) == 0);
     VG_CHECK(&pubkey, sizeof(pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     /* Zero is too small, reject. */
     memset(ctmp, 0, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp) == 0);
@@ -3977,7 +4263,7 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, ctmp) == 0);
     VG_CHECK(&pubkey, sizeof(pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     /* One must be accepted. */
     ctmp[31] = 0x01;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp) == 1);
@@ -3985,7 +4271,7 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, ctmp) == 1);
     VG_CHECK(&pubkey, sizeof(pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
     pubkey_one = pubkey;
     /* Group order + 1 is too large, reject. */
     memcpy(ctmp, orderc, 32);
@@ -3995,7 +4281,7 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, ctmp) == 0);
     VG_CHECK(&pubkey, sizeof(pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     /* -1 must be accepted. */
     ctmp[31] = 0x40;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp) == 1);
@@ -4003,20 +4289,20 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, ctmp) == 1);
     VG_CHECK(&pubkey, sizeof(pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
     pubkey_negone = pubkey;
     /* Tweak of zero leaves the value unchanged. */
     memset(ctmp2, 0, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, ctmp, ctmp2) == 1);
-    CHECK(memcmp(orderc, ctmp, 31) == 0 && ctmp[31] == 0x40);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(orderc, ctmp, 31) == 0 && ctmp[31] == 0x40);
     memcpy(&pubkey2, &pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, ctmp2) == 1);
-    CHECK(memcmp(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
     /* Multiply tweak of zero zeroizes the output. */
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_mul(ctx, ctmp, ctmp2) == 0);
-    CHECK(memcmp(zeros, ctmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zeros, ctmp, 32) == 0);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_mul(ctx, &pubkey, ctmp2) == 0);
-    CHECK(memcmp(&pubkey, zeros, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(pubkey)) == 0);
     memcpy(&pubkey, &pubkey2, sizeof(pubkey));
     /* If seckey_tweak_add or seckey_tweak_mul are called with an overflowing
     seckey, the seckey is zeroized. */
@@ -4026,29 +4312,29 @@ void run_eckey_edge_case_test(void) {
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp2) == 1);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp) == 0);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, ctmp, ctmp2) == 0);
-    CHECK(memcmp(zeros, ctmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zeros, ctmp, 32) == 0);
     memcpy(ctmp, orderc, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_mul(ctx, ctmp, ctmp2) == 0);
-    CHECK(memcmp(zeros, ctmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zeros, ctmp, 32) == 0);
     /* If seckey_tweak_add or seckey_tweak_mul are called with an overflowing
     tweak, the seckey is zeroized. */
     memcpy(ctmp, orderc, 32);
     ctmp[31] = 0x40;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, ctmp, orderc) == 0);
-    CHECK(memcmp(zeros, ctmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zeros, ctmp, 32) == 0);
     memcpy(ctmp, orderc, 32);
     ctmp[31] = 0x40;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_mul(ctx, ctmp, orderc) == 0);
-    CHECK(memcmp(zeros, ctmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zeros, ctmp, 32) == 0);
     memcpy(ctmp, orderc, 32);
     ctmp[31] = 0x40;
     /* If pubkey_tweak_add or pubkey_tweak_mul are called with an overflowing
     tweak, the pubkey is zeroized. */
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, orderc) == 0);
-    CHECK(memcmp(&pubkey, zeros, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(pubkey)) == 0);
     memcpy(&pubkey, &pubkey2, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_mul(ctx, &pubkey, orderc) == 0);
-    CHECK(memcmp(&pubkey, zeros, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(pubkey)) == 0);
     memcpy(&pubkey, &pubkey2, sizeof(pubkey));
     /* If the resulting key in rustsecp256k1_v0_2_0_ec_seckey_tweak_add and
      * rustsecp256k1_v0_2_0_ec_pubkey_tweak_add is 0 the functions fail and in the latter
@@ -4058,25 +4344,25 @@ void run_eckey_edge_case_test(void) {
     memset(ctmp2, 0, 32);
     ctmp2[31] = 1;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, ctmp2, ctmp) == 0);
-    CHECK(memcmp(zeros, ctmp2, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(zeros, ctmp2, 32) == 0);
     ctmp2[31] = 1;
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, ctmp2) == 0);
-    CHECK(memcmp(&pubkey, zeros, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(pubkey)) == 0);
     memcpy(&pubkey, &pubkey2, sizeof(pubkey));
     /* Tweak computation wraps and results in a key of 1. */
     ctmp2[31] = 2;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, ctmp2, ctmp) == 1);
-    CHECK(memcmp(ctmp2, zeros, 31) == 0 && ctmp2[31] == 1);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(ctmp2, zeros, 31) == 0 && ctmp2[31] == 1);
     ctmp2[31] = 2;
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, ctmp2) == 1);
     ctmp2[31] = 1;
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey2, ctmp2) == 1);
-    CHECK(memcmp(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
     /* Tweak mul * 2 = 1+1. */
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, ctmp2) == 1);
     ctmp2[31] = 2;
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_mul(ctx, &pubkey2, ctmp2) == 1);
-    CHECK(memcmp(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
     /* Test argument errors. */
     ecount = 0;
     rustsecp256k1_v0_2_0_context_set_illegal_callback(ctx, counting_illegal_callback_fn, &ecount);
@@ -4085,12 +4371,12 @@ void run_eckey_edge_case_test(void) {
     memset(&pubkey, 0, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, ctmp2) == 0);
     CHECK(ecount == 1);
-    CHECK(memcmp(&pubkey, zeros, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(pubkey)) == 0);
     memcpy(&pubkey, &pubkey2, sizeof(pubkey));
     memset(&pubkey2, 0, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_tweak_mul(ctx, &pubkey2, ctmp2) == 0);
     CHECK(ecount == 2);
-    CHECK(memcmp(&pubkey2, zeros, sizeof(pubkey2)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey2, zeros, sizeof(pubkey2)) == 0);
     /* Plain argument errors. */
     ecount = 0;
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_verify(ctx, ctmp) == 1);
@@ -4130,7 +4416,7 @@ void run_eckey_edge_case_test(void) {
     memset(&pubkey, 1, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, NULL) == 0);
     CHECK(ecount == 2);
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     /* rustsecp256k1_v0_2_0_ec_pubkey_combine tests. */
     ecount = 0;
     pubkeys[0] = &pubkey_one;
@@ -4141,28 +4427,28 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &pubkey, pubkeys, 0) == 0);
     VG_CHECK(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     CHECK(ecount == 1);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, NULL, pubkeys, 1) == 0);
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     CHECK(ecount == 2);
     memset(&pubkey, 255, sizeof(rustsecp256k1_v0_2_0_pubkey));
     VG_UNDEF(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &pubkey, NULL, 1) == 0);
     VG_CHECK(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     CHECK(ecount == 3);
     pubkeys[0] = &pubkey_negone;
     memset(&pubkey, 255, sizeof(rustsecp256k1_v0_2_0_pubkey));
     VG_UNDEF(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &pubkey, pubkeys, 1) == 1);
     VG_CHECK(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
     CHECK(ecount == 3);
     len = 33;
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, ctmp, &len, &pubkey, SECP256K1_EC_COMPRESSED) == 1);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, ctmp2, &len, &pubkey_negone, SECP256K1_EC_COMPRESSED) == 1);
-    CHECK(memcmp(ctmp, ctmp2, 33) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(ctmp, ctmp2, 33) == 0);
     /* Result is infinity. */
     pubkeys[0] = &pubkey_one;
     pubkeys[1] = &pubkey_negone;
@@ -4170,7 +4456,7 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &pubkey, pubkeys, 2) == 0);
     VG_CHECK(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) == 0);
     CHECK(ecount == 3);
     /* Passes through infinity but comes out one. */
     pubkeys[2] = &pubkey_one;
@@ -4178,19 +4464,19 @@ void run_eckey_edge_case_test(void) {
     VG_UNDEF(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &pubkey, pubkeys, 3) == 1);
     VG_CHECK(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
     CHECK(ecount == 3);
     len = 33;
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, ctmp, &len, &pubkey, SECP256K1_EC_COMPRESSED) == 1);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, ctmp2, &len, &pubkey_one, SECP256K1_EC_COMPRESSED) == 1);
-    CHECK(memcmp(ctmp, ctmp2, 33) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(ctmp, ctmp2, 33) == 0);
     /* Adds to two. */
     pubkeys[1] = &pubkey_one;
     memset(&pubkey, 255, sizeof(rustsecp256k1_v0_2_0_pubkey));
     VG_UNDEF(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_combine(ctx, &pubkey, pubkeys, 2) == 1);
     VG_CHECK(&pubkey, sizeof(rustsecp256k1_v0_2_0_pubkey));
-    CHECK(memcmp(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, zeros, sizeof(rustsecp256k1_v0_2_0_pubkey)) > 0);
     CHECK(ecount == 3);
     rustsecp256k1_v0_2_0_context_set_illegal_callback(ctx, NULL, NULL);
 }
@@ -4204,21 +4490,21 @@ void run_eckey_negate_test(void) {
 
     /* Verify negation changes the key and changes it back */
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_negate(ctx, seckey) == 1);
-    CHECK(memcmp(seckey, seckey_tmp, 32) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(seckey, seckey_tmp, 32) != 0);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_negate(ctx, seckey) == 1);
-    CHECK(memcmp(seckey, seckey_tmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(seckey, seckey_tmp, 32) == 0);
 
     /* Check that privkey alias gives same result */
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_negate(ctx, seckey) == 1);
     CHECK(rustsecp256k1_v0_2_0_ec_privkey_negate(ctx, seckey_tmp) == 1);
-    CHECK(memcmp(seckey, seckey_tmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(seckey, seckey_tmp, 32) == 0);
 
     /* Negating all 0s fails */
     memset(seckey, 0, 32);
     memset(seckey_tmp, 0, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_negate(ctx, seckey) == 0);
     /* Check that seckey is not modified */
-    CHECK(memcmp(seckey, seckey_tmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(seckey, seckey_tmp, 32) == 0);
 
     /* Negating an overflowing seckey fails and the seckey is zeroed. In this
      * test, the seckey has 16 random bytes to ensure that ec_seckey_negate
@@ -4227,7 +4513,7 @@ void run_eckey_negate_test(void) {
     memset(seckey, 0xFF, 16);
     memset(seckey_tmp, 0, 32);
     CHECK(rustsecp256k1_v0_2_0_ec_seckey_negate(ctx, seckey) == 0);
-    CHECK(memcmp(seckey, seckey_tmp, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(seckey, seckey_tmp, 32) == 0);
 }
 
 void random_sign(rustsecp256k1_v0_2_0_scalar *sigr, rustsecp256k1_v0_2_0_scalar *sigs, const rustsecp256k1_v0_2_0_scalar *key, const rustsecp256k1_v0_2_0_scalar *msg, int *recid) {
@@ -4249,7 +4535,7 @@ void test_ecdsa_sign_verify(void) {
     random_scalar_order_test(&key);
     rustsecp256k1_v0_2_0_ecmult_gen(&ctx->ecmult_gen_ctx, &pubj, &key);
     rustsecp256k1_v0_2_0_ge_set_gej(&pub, &pubj);
-    getrec = rustsecp256k1_v0_2_0_rand_bits(1);
+    getrec = rustsecp256k1_v0_2_0_testrand_bits(1);
     random_sign(&sigr, &sigs, &key, &msg, getrec?&recid:NULL);
     if (getrec) {
         CHECK(recid >= 0 && recid < 4);
@@ -4316,7 +4602,7 @@ static int nonce_function_test_retry(unsigned char *nonce32, const unsigned char
 
 int is_empty_signature(const rustsecp256k1_v0_2_0_ecdsa_signature *sig) {
     static const unsigned char res[sizeof(rustsecp256k1_v0_2_0_ecdsa_signature)] = {0};
-    return memcmp(sig, res, sizeof(rustsecp256k1_v0_2_0_ecdsa_signature)) == 0;
+    return rustsecp256k1_v0_2_0_memcmp_var(sig, res, sizeof(rustsecp256k1_v0_2_0_ecdsa_signature)) == 0;
 }
 
 void test_ecdsa_end_to_end(void) {
@@ -4349,31 +4635,31 @@ void test_ecdsa_end_to_end(void) {
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey, privkey) == 1);
 
     /* Verify exporting and importing public key. */
-    CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, pubkeyc, &pubkeyclen, &pubkey, rustsecp256k1_v0_2_0_rand_bits(1) == 1 ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED));
+    CHECK(rustsecp256k1_v0_2_0_ec_pubkey_serialize(ctx, pubkeyc, &pubkeyclen, &pubkey, rustsecp256k1_v0_2_0_testrand_bits(1) == 1 ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED));
     memset(&pubkey, 0, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_parse(ctx, &pubkey, pubkeyc, pubkeyclen) == 1);
 
     /* Verify negation changes the key and changes it back */
     memcpy(&pubkey_tmp, &pubkey, sizeof(pubkey));
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_negate(ctx, &pubkey_tmp) == 1);
-    CHECK(memcmp(&pubkey_tmp, &pubkey, sizeof(pubkey)) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey_tmp, &pubkey, sizeof(pubkey)) != 0);
     CHECK(rustsecp256k1_v0_2_0_ec_pubkey_negate(ctx, &pubkey_tmp) == 1);
-    CHECK(memcmp(&pubkey_tmp, &pubkey, sizeof(pubkey)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey_tmp, &pubkey, sizeof(pubkey)) == 0);
 
     /* Verify private key import and export. */
-    CHECK(ec_privkey_export_der(ctx, seckey, &seckeylen, privkey, rustsecp256k1_v0_2_0_rand_bits(1) == 1));
+    CHECK(ec_privkey_export_der(ctx, seckey, &seckeylen, privkey, rustsecp256k1_v0_2_0_testrand_bits(1) == 1));
     CHECK(ec_privkey_import_der(ctx, privkey2, seckey, seckeylen) == 1);
-    CHECK(memcmp(privkey, privkey2, 32) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(privkey, privkey2, 32) == 0);
 
     /* Optionally tweak the keys using addition. */
-    if (rustsecp256k1_v0_2_0_rand_int(3) == 0) {
+    if (rustsecp256k1_v0_2_0_testrand_int(3) == 0) {
         int ret1;
         int ret2;
         int ret3;
         unsigned char rnd[32];
         unsigned char privkey_tmp[32];
         rustsecp256k1_v0_2_0_pubkey pubkey2;
-        rustsecp256k1_v0_2_0_rand256_test(rnd);
+        rustsecp256k1_v0_2_0_testrand256_test(rnd);
         memcpy(privkey_tmp, privkey, 32);
         ret1 = rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, privkey, rnd);
         ret2 = rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(ctx, &pubkey, rnd);
@@ -4384,20 +4670,20 @@ void test_ecdsa_end_to_end(void) {
         if (ret1 == 0) {
             return;
         }
-        CHECK(memcmp(privkey, privkey_tmp, 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(privkey, privkey_tmp, 32) == 0);
         CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey2, privkey) == 1);
-        CHECK(memcmp(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
     }
 
     /* Optionally tweak the keys using multiplication. */
-    if (rustsecp256k1_v0_2_0_rand_int(3) == 0) {
+    if (rustsecp256k1_v0_2_0_testrand_int(3) == 0) {
         int ret1;
         int ret2;
         int ret3;
         unsigned char rnd[32];
         unsigned char privkey_tmp[32];
         rustsecp256k1_v0_2_0_pubkey pubkey2;
-        rustsecp256k1_v0_2_0_rand256_test(rnd);
+        rustsecp256k1_v0_2_0_testrand256_test(rnd);
         memcpy(privkey_tmp, privkey, 32);
         ret1 = rustsecp256k1_v0_2_0_ec_seckey_tweak_mul(ctx, privkey, rnd);
         ret2 = rustsecp256k1_v0_2_0_ec_pubkey_tweak_mul(ctx, &pubkey, rnd);
@@ -4408,9 +4694,9 @@ void test_ecdsa_end_to_end(void) {
         if (ret1 == 0) {
             return;
         }
-        CHECK(memcmp(privkey, privkey_tmp, 32) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(privkey, privkey_tmp, 32) == 0);
         CHECK(rustsecp256k1_v0_2_0_ec_pubkey_create(ctx, &pubkey2, privkey) == 1);
-        CHECK(memcmp(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&pubkey, &pubkey2, sizeof(pubkey)) == 0);
     }
 
     /* Sign. */
@@ -4422,13 +4708,13 @@ void test_ecdsa_end_to_end(void) {
     extra[31] = 0;
     extra[0] = 1;
     CHECK(rustsecp256k1_v0_2_0_ecdsa_sign(ctx, &signature[3], message, privkey, NULL, extra) == 1);
-    CHECK(memcmp(&signature[0], &signature[4], sizeof(signature[0])) == 0);
-    CHECK(memcmp(&signature[0], &signature[1], sizeof(signature[0])) != 0);
-    CHECK(memcmp(&signature[0], &signature[2], sizeof(signature[0])) != 0);
-    CHECK(memcmp(&signature[0], &signature[3], sizeof(signature[0])) != 0);
-    CHECK(memcmp(&signature[1], &signature[2], sizeof(signature[0])) != 0);
-    CHECK(memcmp(&signature[1], &signature[3], sizeof(signature[0])) != 0);
-    CHECK(memcmp(&signature[2], &signature[3], sizeof(signature[0])) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[0], &signature[4], sizeof(signature[0])) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[0], &signature[1], sizeof(signature[0])) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[0], &signature[2], sizeof(signature[0])) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[0], &signature[3], sizeof(signature[0])) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[1], &signature[2], sizeof(signature[0])) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[1], &signature[3], sizeof(signature[0])) != 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[2], &signature[3], sizeof(signature[0])) != 0);
     /* Verify. */
     CHECK(rustsecp256k1_v0_2_0_ecdsa_verify(ctx, &signature[0], message, &pubkey) == 1);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_verify(ctx, &signature[1], message, &pubkey) == 1);
@@ -4449,7 +4735,7 @@ void test_ecdsa_end_to_end(void) {
     rustsecp256k1_v0_2_0_ecdsa_signature_save(&signature[5], &r, &s);
     CHECK(!rustsecp256k1_v0_2_0_ecdsa_signature_normalize(ctx, NULL, &signature[5]));
     CHECK(rustsecp256k1_v0_2_0_ecdsa_verify(ctx, &signature[5], message, &pubkey) == 1);
-    CHECK(memcmp(&signature[5], &signature[0], 64) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&signature[5], &signature[0], 64) == 0);
 
     /* Serialize/parse DER and verify again */
     CHECK(rustsecp256k1_v0_2_0_ecdsa_signature_serialize_der(ctx, sig, &siglen, &signature[0]) == 1);
@@ -4459,7 +4745,7 @@ void test_ecdsa_end_to_end(void) {
     /* Serialize/destroy/parse DER and verify again. */
     siglen = 74;
     CHECK(rustsecp256k1_v0_2_0_ecdsa_signature_serialize_der(ctx, sig, &siglen, &signature[0]) == 1);
-    sig[rustsecp256k1_v0_2_0_rand_int(siglen)] += 1 + rustsecp256k1_v0_2_0_rand_int(255);
+    sig[rustsecp256k1_v0_2_0_testrand_int(siglen)] += 1 + rustsecp256k1_v0_2_0_testrand_int(255);
     CHECK(rustsecp256k1_v0_2_0_ecdsa_signature_parse_der(ctx, &signature[0], sig, siglen) == 0 ||
           rustsecp256k1_v0_2_0_ecdsa_verify(ctx, &signature[0], message, &pubkey) == 0);
 }
@@ -4469,23 +4755,23 @@ void test_random_pubkeys(void) {
     rustsecp256k1_v0_2_0_ge elem2;
     unsigned char in[65];
     /* Generate some randomly sized pubkeys. */
-    size_t len = rustsecp256k1_v0_2_0_rand_bits(2) == 0 ? 65 : 33;
-    if (rustsecp256k1_v0_2_0_rand_bits(2) == 0) {
-        len = rustsecp256k1_v0_2_0_rand_bits(6);
+    size_t len = rustsecp256k1_v0_2_0_testrand_bits(2) == 0 ? 65 : 33;
+    if (rustsecp256k1_v0_2_0_testrand_bits(2) == 0) {
+        len = rustsecp256k1_v0_2_0_testrand_bits(6);
     }
     if (len == 65) {
-      in[0] = rustsecp256k1_v0_2_0_rand_bits(1) ? 4 : (rustsecp256k1_v0_2_0_rand_bits(1) ? 6 : 7);
+      in[0] = rustsecp256k1_v0_2_0_testrand_bits(1) ? 4 : (rustsecp256k1_v0_2_0_testrand_bits(1) ? 6 : 7);
     } else {
-      in[0] = rustsecp256k1_v0_2_0_rand_bits(1) ? 2 : 3;
+      in[0] = rustsecp256k1_v0_2_0_testrand_bits(1) ? 2 : 3;
     }
-    if (rustsecp256k1_v0_2_0_rand_bits(3) == 0) {
-        in[0] = rustsecp256k1_v0_2_0_rand_bits(8);
+    if (rustsecp256k1_v0_2_0_testrand_bits(3) == 0) {
+        in[0] = rustsecp256k1_v0_2_0_testrand_bits(8);
     }
     if (len > 1) {
-        rustsecp256k1_v0_2_0_rand256(&in[1]);
+        rustsecp256k1_v0_2_0_testrand256(&in[1]);
     }
     if (len > 33) {
-        rustsecp256k1_v0_2_0_rand256(&in[33]);
+        rustsecp256k1_v0_2_0_testrand256(&in[33]);
     }
     if (rustsecp256k1_v0_2_0_eckey_pubkey_parse(&elem, in, len)) {
         unsigned char out[65];
@@ -4496,7 +4782,7 @@ void test_random_pubkeys(void) {
         /* If the pubkey can be parsed, it should round-trip... */
         CHECK(rustsecp256k1_v0_2_0_eckey_pubkey_serialize(&elem, out, &size, len == 33));
         CHECK(size == len);
-        CHECK(memcmp(&in[1], &out[1], len-1) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&in[1], &out[1], len-1) == 0);
         /* ... except for the type of hybrid inputs. */
         if ((in[0] != 6) && (in[0] != 7)) {
             CHECK(in[0] == out[0]);
@@ -4507,7 +4793,7 @@ void test_random_pubkeys(void) {
         CHECK(rustsecp256k1_v0_2_0_eckey_pubkey_parse(&elem2, in, size));
         ge_equals_ge(&elem,&elem2);
         /* Check that the X9.62 hybrid type is checked. */
-        in[0] = rustsecp256k1_v0_2_0_rand_bits(1) ? 6 : 7;
+        in[0] = rustsecp256k1_v0_2_0_testrand_bits(1) ? 6 : 7;
         res = rustsecp256k1_v0_2_0_eckey_pubkey_parse(&elem2, in, size);
         if (firstb == 2 || firstb == 3) {
             if (in[0] == firstb + 4) {
@@ -4519,7 +4805,7 @@ void test_random_pubkeys(void) {
         if (res) {
             ge_equals_ge(&elem,&elem2);
             CHECK(rustsecp256k1_v0_2_0_eckey_pubkey_serialize(&elem, out, &size, 0));
-            CHECK(memcmp(&in[1], &out[1], 64) == 0);
+            CHECK(rustsecp256k1_v0_2_0_memcmp_var(&in[1], &out[1], 64) == 0);
         }
     }
 }
@@ -4575,21 +4861,21 @@ int test_ecdsa_der_parse(const unsigned char *sig, size_t siglen, int certainly_
     parsed_der = rustsecp256k1_v0_2_0_ecdsa_signature_parse_der(ctx, &sig_der, sig, siglen);
     if (parsed_der) {
         ret |= (!rustsecp256k1_v0_2_0_ecdsa_signature_serialize_compact(ctx, compact_der, &sig_der)) << 0;
-        valid_der = (memcmp(compact_der, zeroes, 32) != 0) && (memcmp(compact_der + 32, zeroes, 32) != 0);
+        valid_der = (rustsecp256k1_v0_2_0_memcmp_var(compact_der, zeroes, 32) != 0) && (rustsecp256k1_v0_2_0_memcmp_var(compact_der + 32, zeroes, 32) != 0);
     }
     if (valid_der) {
         ret |= (!rustsecp256k1_v0_2_0_ecdsa_signature_serialize_der(ctx, roundtrip_der, &len_der, &sig_der)) << 1;
-        roundtrips_der = (len_der == siglen) && memcmp(roundtrip_der, sig, siglen) == 0;
+        roundtrips_der = (len_der == siglen) && rustsecp256k1_v0_2_0_memcmp_var(roundtrip_der, sig, siglen) == 0;
     }
 
     parsed_der_lax = rustsecp256k1_v0_2_0_ecdsa_signature_parse_der_lax(ctx, &sig_der_lax, sig, siglen);
     if (parsed_der_lax) {
         ret |= (!rustsecp256k1_v0_2_0_ecdsa_signature_serialize_compact(ctx, compact_der_lax, &sig_der_lax)) << 10;
-        valid_der_lax = (memcmp(compact_der_lax, zeroes, 32) != 0) && (memcmp(compact_der_lax + 32, zeroes, 32) != 0);
+        valid_der_lax = (rustsecp256k1_v0_2_0_memcmp_var(compact_der_lax, zeroes, 32) != 0) && (rustsecp256k1_v0_2_0_memcmp_var(compact_der_lax + 32, zeroes, 32) != 0);
     }
     if (valid_der_lax) {
         ret |= (!rustsecp256k1_v0_2_0_ecdsa_signature_serialize_der(ctx, roundtrip_der_lax, &len_der_lax, &sig_der_lax)) << 11;
-        roundtrips_der_lax = (len_der_lax == siglen) && memcmp(roundtrip_der_lax, sig, siglen) == 0;
+        roundtrips_der_lax = (len_der_lax == siglen) && rustsecp256k1_v0_2_0_memcmp_var(roundtrip_der_lax, sig, siglen) == 0;
     }
 
     if (certainly_der) {
@@ -4605,7 +4891,7 @@ int test_ecdsa_der_parse(const unsigned char *sig, size_t siglen, int certainly_
     if (valid_der) {
         ret |= (!roundtrips_der_lax) << 12;
         ret |= (len_der != len_der_lax) << 13;
-        ret |= ((len_der != len_der_lax) || (memcmp(roundtrip_der_lax, roundtrip_der, len_der) != 0)) << 14;
+        ret |= ((len_der != len_der_lax) || (rustsecp256k1_v0_2_0_memcmp_var(roundtrip_der_lax, roundtrip_der, len_der) != 0)) << 14;
     }
     ret |= (roundtrips_der != roundtrips_der_lax) << 15;
     if (parsed_der) {
@@ -4622,19 +4908,19 @@ int test_ecdsa_der_parse(const unsigned char *sig, size_t siglen, int certainly_
         if (valid_openssl) {
             unsigned char tmp[32] = {0};
             BN_bn2bin(r, tmp + 32 - BN_num_bytes(r));
-            valid_openssl = memcmp(tmp, max_scalar, 32) < 0;
+            valid_openssl = rustsecp256k1_v0_2_0_memcmp_var(tmp, max_scalar, 32) < 0;
         }
         if (valid_openssl) {
             unsigned char tmp[32] = {0};
             BN_bn2bin(s, tmp + 32 - BN_num_bytes(s));
-            valid_openssl = memcmp(tmp, max_scalar, 32) < 0;
+            valid_openssl = rustsecp256k1_v0_2_0_memcmp_var(tmp, max_scalar, 32) < 0;
         }
     }
     len_openssl = i2d_ECDSA_SIG(sig_openssl, NULL);
     if (len_openssl <= 2048) {
         unsigned char *ptr = roundtrip_openssl;
         CHECK(i2d_ECDSA_SIG(sig_openssl, &ptr) == len_openssl);
-        roundtrips_openssl = valid_openssl && ((size_t)len_openssl == siglen) && (memcmp(roundtrip_openssl, sig, siglen) == 0);
+        roundtrips_openssl = valid_openssl && ((size_t)len_openssl == siglen) && (rustsecp256k1_v0_2_0_memcmp_var(roundtrip_openssl, sig, siglen) == 0);
     } else {
         len_openssl = 0;
     }
@@ -4646,7 +4932,7 @@ int test_ecdsa_der_parse(const unsigned char *sig, size_t siglen, int certainly_
     ret |= (roundtrips_der != roundtrips_openssl) << 7;
     if (roundtrips_openssl) {
         ret |= (len_der != (size_t)len_openssl) << 8;
-        ret |= ((len_der != (size_t)len_openssl) || (memcmp(roundtrip_der, roundtrip_openssl, len_der) != 0)) << 9;
+        ret |= ((len_der != (size_t)len_openssl) || (rustsecp256k1_v0_2_0_memcmp_var(roundtrip_der, roundtrip_openssl, len_der) != 0)) << 9;
     }
 #endif
     return ret;
@@ -4666,27 +4952,27 @@ static void assign_big_endian(unsigned char *ptr, size_t ptrlen, uint32_t val) {
 
 static void damage_array(unsigned char *sig, size_t *len) {
     int pos;
-    int action = rustsecp256k1_v0_2_0_rand_bits(3);
+    int action = rustsecp256k1_v0_2_0_testrand_bits(3);
     if (action < 1 && *len > 3) {
         /* Delete a byte. */
-        pos = rustsecp256k1_v0_2_0_rand_int(*len);
+        pos = rustsecp256k1_v0_2_0_testrand_int(*len);
         memmove(sig + pos, sig + pos + 1, *len - pos - 1);
         (*len)--;
         return;
     } else if (action < 2 && *len < 2048) {
         /* Insert a byte. */
-        pos = rustsecp256k1_v0_2_0_rand_int(1 + *len);
+        pos = rustsecp256k1_v0_2_0_testrand_int(1 + *len);
         memmove(sig + pos + 1, sig + pos, *len - pos);
-        sig[pos] = rustsecp256k1_v0_2_0_rand_bits(8);
+        sig[pos] = rustsecp256k1_v0_2_0_testrand_bits(8);
         (*len)++;
         return;
     } else if (action < 4) {
         /* Modify a byte. */
-        sig[rustsecp256k1_v0_2_0_rand_int(*len)] += 1 + rustsecp256k1_v0_2_0_rand_int(255);
+        sig[rustsecp256k1_v0_2_0_testrand_int(*len)] += 1 + rustsecp256k1_v0_2_0_testrand_int(255);
         return;
     } else { /* action < 8 */
         /* Modify a bit. */
-        sig[rustsecp256k1_v0_2_0_rand_int(*len)] ^= 1 << rustsecp256k1_v0_2_0_rand_bits(3);
+        sig[rustsecp256k1_v0_2_0_testrand_int(*len)] ^= 1 << rustsecp256k1_v0_2_0_testrand_bits(3);
         return;
     }
 }
@@ -4699,23 +4985,23 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
     int n;
 
     *len = 0;
-    der = rustsecp256k1_v0_2_0_rand_bits(2) == 0;
+    der = rustsecp256k1_v0_2_0_testrand_bits(2) == 0;
     *certainly_der = der;
     *certainly_not_der = 0;
-    indet = der ? 0 : rustsecp256k1_v0_2_0_rand_int(10) == 0;
+    indet = der ? 0 : rustsecp256k1_v0_2_0_testrand_int(10) == 0;
 
     for (n = 0; n < 2; n++) {
         /* We generate two classes of numbers: nlow==1 "low" ones (up to 32 bytes), nlow==0 "high" ones (32 bytes with 129 top bits set, or larger than 32 bytes) */
-        nlow[n] = der ? 1 : (rustsecp256k1_v0_2_0_rand_bits(3) != 0);
+        nlow[n] = der ? 1 : (rustsecp256k1_v0_2_0_testrand_bits(3) != 0);
         /* The length of the number in bytes (the first byte of which will always be nonzero) */
-        nlen[n] = nlow[n] ? rustsecp256k1_v0_2_0_rand_int(33) : 32 + rustsecp256k1_v0_2_0_rand_int(200) * rustsecp256k1_v0_2_0_rand_int(8) / 8;
+        nlen[n] = nlow[n] ? rustsecp256k1_v0_2_0_testrand_int(33) : 32 + rustsecp256k1_v0_2_0_testrand_int(200) * rustsecp256k1_v0_2_0_testrand_int(8) / 8;
         CHECK(nlen[n] <= 232);
         /* The top bit of the number. */
-        nhbit[n] = (nlow[n] == 0 && nlen[n] == 32) ? 1 : (nlen[n] == 0 ? 0 : rustsecp256k1_v0_2_0_rand_bits(1));
+        nhbit[n] = (nlow[n] == 0 && nlen[n] == 32) ? 1 : (nlen[n] == 0 ? 0 : rustsecp256k1_v0_2_0_testrand_bits(1));
         /* The top byte of the number (after the potential hardcoded 16 0xFF characters for "high" 32 bytes numbers) */
-        nhbyte[n] = nlen[n] == 0 ? 0 : (nhbit[n] ? 128 + rustsecp256k1_v0_2_0_rand_bits(7) : 1 + rustsecp256k1_v0_2_0_rand_int(127));
+        nhbyte[n] = nlen[n] == 0 ? 0 : (nhbit[n] ? 128 + rustsecp256k1_v0_2_0_testrand_bits(7) : 1 + rustsecp256k1_v0_2_0_testrand_int(127));
         /* The number of zero bytes in front of the number (which is 0 or 1 in case of DER, otherwise we extend up to 300 bytes) */
-        nzlen[n] = der ? ((nlen[n] == 0 || nhbit[n]) ? 1 : 0) : (nlow[n] ? rustsecp256k1_v0_2_0_rand_int(3) : rustsecp256k1_v0_2_0_rand_int(300 - nlen[n]) * rustsecp256k1_v0_2_0_rand_int(8) / 8);
+        nzlen[n] = der ? ((nlen[n] == 0 || nhbit[n]) ? 1 : 0) : (nlow[n] ? rustsecp256k1_v0_2_0_testrand_int(3) : rustsecp256k1_v0_2_0_testrand_int(300 - nlen[n]) * rustsecp256k1_v0_2_0_testrand_int(8) / 8);
         if (nzlen[n] > ((nlen[n] == 0 || nhbit[n]) ? 1 : 0)) {
             *certainly_not_der = 1;
         }
@@ -4724,7 +5010,7 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
         nlenlen[n] = nlen[n] + nzlen[n] < 128 ? 0 : (nlen[n] + nzlen[n] < 256 ? 1 : 2);
         if (!der) {
             /* nlenlen[n] max 127 bytes */
-            int add = rustsecp256k1_v0_2_0_rand_int(127 - nlenlen[n]) * rustsecp256k1_v0_2_0_rand_int(16) * rustsecp256k1_v0_2_0_rand_int(16) / 256;
+            int add = rustsecp256k1_v0_2_0_testrand_int(127 - nlenlen[n]) * rustsecp256k1_v0_2_0_testrand_int(16) * rustsecp256k1_v0_2_0_testrand_int(16) / 256;
             nlenlen[n] += add;
             if (add != 0) {
                 *certainly_not_der = 1;
@@ -4738,7 +5024,7 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
     CHECK(tlen <= 856);
 
     /* The length of the garbage inside the tuple. */
-    elen = (der || indet) ? 0 : rustsecp256k1_v0_2_0_rand_int(980 - tlen) * rustsecp256k1_v0_2_0_rand_int(8) / 8;
+    elen = (der || indet) ? 0 : rustsecp256k1_v0_2_0_testrand_int(980 - tlen) * rustsecp256k1_v0_2_0_testrand_int(8) / 8;
     if (elen != 0) {
         *certainly_not_der = 1;
     }
@@ -4746,7 +5032,7 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
     CHECK(tlen <= 980);
 
     /* The length of the garbage after the end of the tuple. */
-    glen = der ? 0 : rustsecp256k1_v0_2_0_rand_int(990 - tlen) * rustsecp256k1_v0_2_0_rand_int(8) / 8;
+    glen = der ? 0 : rustsecp256k1_v0_2_0_testrand_int(990 - tlen) * rustsecp256k1_v0_2_0_testrand_int(8) / 8;
     if (glen != 0) {
         *certainly_not_der = 1;
     }
@@ -4761,7 +5047,7 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
     } else {
         int tlenlen = tlen < 128 ? 0 : (tlen < 256 ? 1 : 2);
         if (!der) {
-            int add = rustsecp256k1_v0_2_0_rand_int(127 - tlenlen) * rustsecp256k1_v0_2_0_rand_int(16) * rustsecp256k1_v0_2_0_rand_int(16) / 256;
+            int add = rustsecp256k1_v0_2_0_testrand_int(127 - tlenlen) * rustsecp256k1_v0_2_0_testrand_int(16) * rustsecp256k1_v0_2_0_testrand_int(16) / 256;
             tlenlen += add;
             if (add != 0) {
                 *certainly_not_der = 1;
@@ -4812,13 +5098,13 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
             nlen[n]--;
         }
         /* Generate remaining random bytes of number */
-        rustsecp256k1_v0_2_0_rand_bytes_test(sig + *len, nlen[n]);
+        rustsecp256k1_v0_2_0_testrand_bytes_test(sig + *len, nlen[n]);
         *len += nlen[n];
         nlen[n] = 0;
     }
 
     /* Generate random garbage inside tuple. */
-    rustsecp256k1_v0_2_0_rand_bytes_test(sig + *len, elen);
+    rustsecp256k1_v0_2_0_testrand_bytes_test(sig + *len, elen);
     *len += elen;
 
     /* Generate end-of-contents bytes. */
@@ -4830,7 +5116,7 @@ static void random_ber_signature(unsigned char *sig, size_t *len, int* certainly
     CHECK(tlen + glen <= 1121);
 
     /* Generate random garbage outside tuple. */
-    rustsecp256k1_v0_2_0_rand_bytes_test(sig + *len, glen);
+    rustsecp256k1_v0_2_0_testrand_bytes_test(sig + *len, glen);
     *len += glen;
     tlen += glen;
     CHECK(tlen <= 1121);
@@ -5162,11 +5448,11 @@ void test_ecdsa_edge_cases(void) {
         CHECK(!is_empty_signature(&sig));
         CHECK(rustsecp256k1_v0_2_0_ecdsa_sign(ctx, &sig2, msg, key, nonce_function_rfc6979, extra) == 1);
         CHECK(!is_empty_signature(&sig2));
-        CHECK(memcmp(&sig, &sig2, sizeof(sig)) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&sig, &sig2, sizeof(sig)) == 0);
         /* The default nonce function is deterministic. */
         CHECK(rustsecp256k1_v0_2_0_ecdsa_sign(ctx, &sig2, msg, key, NULL, extra) == 1);
         CHECK(!is_empty_signature(&sig2));
-        CHECK(memcmp(&sig, &sig2, sizeof(sig)) == 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(&sig, &sig2, sizeof(sig)) == 0);
         /* The default nonce function changes output with different messages. */
         for(i = 0; i < 256; i++) {
             int j;
@@ -5213,12 +5499,12 @@ void test_ecdsa_edge_cases(void) {
         VG_CHECK(nonce3,32);
         CHECK(nonce_function_rfc6979(nonce4, zeros, zeros, zeros, (void *)zeros, 0) == 1);
         VG_CHECK(nonce4,32);
-        CHECK(memcmp(nonce, nonce2, 32) != 0);
-        CHECK(memcmp(nonce, nonce3, 32) != 0);
-        CHECK(memcmp(nonce, nonce4, 32) != 0);
-        CHECK(memcmp(nonce2, nonce3, 32) != 0);
-        CHECK(memcmp(nonce2, nonce4, 32) != 0);
-        CHECK(memcmp(nonce3, nonce4, 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(nonce, nonce2, 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(nonce, nonce3, 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(nonce, nonce4, 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(nonce2, nonce3, 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(nonce2, nonce4, 32) != 0);
+        CHECK(rustsecp256k1_v0_2_0_memcmp_var(nonce3, nonce4, 32) != 0);
     }
 
 
@@ -5247,7 +5533,7 @@ EC_KEY *get_openssl_key(const unsigned char *key32) {
     unsigned char privkey[300];
     size_t privkeylen;
     const unsigned char* pbegin = privkey;
-    int compr = rustsecp256k1_v0_2_0_rand_bits(1);
+    int compr = rustsecp256k1_v0_2_0_testrand_bits(1);
     EC_KEY *ec_key = EC_KEY_new_by_curve_name(NID_secp256k1);
     CHECK(ec_privkey_export_der(ctx, privkey, &privkeylen, key32, compr));
     CHECK(d2i_ECPrivateKey(&ec_key, &pbegin, privkeylen));
@@ -5268,7 +5554,7 @@ void test_ecdsa_openssl(void) {
     unsigned char message[32];
     unsigned char signature[80];
     unsigned char key32[32];
-    rustsecp256k1_v0_2_0_rand256_test(message);
+    rustsecp256k1_v0_2_0_testrand256_test(message);
     rustsecp256k1_v0_2_0_scalar_set_b32(&msg, message, NULL);
     random_scalar_order_test(&key);
     rustsecp256k1_v0_2_0_scalar_get_b32(key32, &key);
@@ -5299,26 +5585,54 @@ void run_ecdsa_openssl(void) {
 #endif
 
 #ifdef ENABLE_MODULE_ECDH
-# include "modules/ecdh/tests_impl.h"
+#include "modules/ecdh/tests_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_MUSIG
+#include "modules/musig/tests_impl.h"
 #endif
 
 #ifdef ENABLE_MODULE_RECOVERY
-# include "modules/recovery/tests_impl.h"
+#include "modules/recovery/tests_impl.h"
 #endif
 
-void run_memczero_test(void) {
+#ifdef ENABLE_MODULE_GENERATOR
+#include "modules/generator/tests_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_RANGEPROOF
+#include "modules/rangeproof/tests_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_WHITELIST
+#include "modules/whitelist/tests_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_SURJECTIONPROOF
+#include "modules/surjection/tests_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_EXTRAKEYS
+#include "modules/extrakeys/tests_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_SCHNORRSIG
+#include "modules/schnorrsig/tests_impl.h"
+#endif
+
+void run_rustsecp256k1_v0_2_0_memczero_test(void) {
     unsigned char buf1[6] = {1, 2, 3, 4, 5, 6};
     unsigned char buf2[sizeof(buf1)];
 
-    /* memczero(..., ..., 0) is a noop. */
+    /* rustsecp256k1_v0_2_0_memczero(..., ..., 0) is a noop. */
     memcpy(buf2, buf1, sizeof(buf1));
-    memczero(buf1, sizeof(buf1), 0);
-    CHECK(memcmp(buf1, buf2, sizeof(buf1)) == 0);
+    rustsecp256k1_v0_2_0_memczero(buf1, sizeof(buf1), 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(buf1, buf2, sizeof(buf1)) == 0);
 
-    /* memczero(..., ..., 1) zeros the buffer. */
+    /* rustsecp256k1_v0_2_0_memczero(..., ..., 1) zeros the buffer. */
     memset(buf2, 0, sizeof(buf2));
-    memczero(buf1, sizeof(buf1) , 1);
-    CHECK(memcmp(buf1, buf2, sizeof(buf1)) == 0);
+    rustsecp256k1_v0_2_0_memczero(buf1, sizeof(buf1) , 1);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(buf1, buf2, sizeof(buf1)) == 0);
 }
 
 void int_cmov_test(void) {
@@ -5357,23 +5671,23 @@ void fe_cmov_test(void) {
     rustsecp256k1_v0_2_0_fe a = zero;
 
     rustsecp256k1_v0_2_0_fe_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     r = zero; a = max;
     rustsecp256k1_v0_2_0_fe_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     a = zero;
     rustsecp256k1_v0_2_0_fe_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &zero, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &zero, sizeof(r)) == 0);
 
     a = one;
     rustsecp256k1_v0_2_0_fe_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 
     r = one; a = zero;
     rustsecp256k1_v0_2_0_fe_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 }
 
 void fe_storage_cmov_test(void) {
@@ -5387,23 +5701,23 @@ void fe_storage_cmov_test(void) {
     rustsecp256k1_v0_2_0_fe_storage a = zero;
 
     rustsecp256k1_v0_2_0_fe_storage_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     r = zero; a = max;
     rustsecp256k1_v0_2_0_fe_storage_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     a = zero;
     rustsecp256k1_v0_2_0_fe_storage_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &zero, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &zero, sizeof(r)) == 0);
 
     a = one;
     rustsecp256k1_v0_2_0_fe_storage_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 
     r = one; a = zero;
     rustsecp256k1_v0_2_0_fe_storage_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 }
 
 void scalar_cmov_test(void) {
@@ -5417,23 +5731,23 @@ void scalar_cmov_test(void) {
     rustsecp256k1_v0_2_0_scalar a = zero;
 
     rustsecp256k1_v0_2_0_scalar_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     r = zero; a = max;
     rustsecp256k1_v0_2_0_scalar_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     a = zero;
     rustsecp256k1_v0_2_0_scalar_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &zero, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &zero, sizeof(r)) == 0);
 
     a = one;
     rustsecp256k1_v0_2_0_scalar_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 
     r = one; a = zero;
     rustsecp256k1_v0_2_0_scalar_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 }
 
 void ge_storage_cmov_test(void) {
@@ -5449,23 +5763,23 @@ void ge_storage_cmov_test(void) {
     rustsecp256k1_v0_2_0_ge_storage a = zero;
 
     rustsecp256k1_v0_2_0_ge_storage_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     r = zero; a = max;
     rustsecp256k1_v0_2_0_ge_storage_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &max, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &max, sizeof(r)) == 0);
 
     a = zero;
     rustsecp256k1_v0_2_0_ge_storage_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &zero, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &zero, sizeof(r)) == 0);
 
     a = one;
     rustsecp256k1_v0_2_0_ge_storage_cmov(&r, &a, 1);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 
     r = one; a = zero;
     rustsecp256k1_v0_2_0_ge_storage_cmov(&r, &a, 0);
-    CHECK(memcmp(&r, &one, sizeof(r)) == 0);
+    CHECK(rustsecp256k1_v0_2_0_memcmp_var(&r, &one, sizeof(r)) == 0);
 }
 
 void run_cmov_tests(void) {
@@ -5477,9 +5791,6 @@ void run_cmov_tests(void) {
 }
 
 int main(int argc, char **argv) {
-    unsigned char seed16[16] = {0};
-    unsigned char run32[32] = {0};
-
     /* Disable buffering for stdout to improve reliability of getting
      * diagnostic information. Happens right at the start of main because
      * setbuf must be used before any other operation on the stream. */
@@ -5491,57 +5802,35 @@ int main(int argc, char **argv) {
     /* find iteration count */
     if (argc > 1) {
         count = strtol(argv[1], NULL, 0);
+    } else {
+        const char* env = getenv("SECP256K1_TEST_ITERS");
+        if (env) {
+            count = strtol(env, NULL, 0);
+        }
     }
+    if (count <= 0) {
+        fputs("An iteration count of 0 or less is not allowed.\n", stderr);
+        return EXIT_FAILURE;
+    }
+    printf("test count = %i\n", count);
 
     /* find random seed */
-    if (argc > 2) {
-        int pos = 0;
-        const char* ch = argv[2];
-        while (pos < 16 && ch[0] != 0 && ch[1] != 0) {
-            unsigned short sh;
-            if ((sscanf(ch, "%2hx", &sh)) == 1) {
-                seed16[pos] = sh;
-            } else {
-                break;
-            }
-            ch += 2;
-            pos++;
-        }
-    } else {
-        FILE *frand = fopen("/dev/urandom", "r");
-        if ((frand == NULL) || fread(&seed16, 1, sizeof(seed16), frand) != sizeof(seed16)) {
-            uint64_t t = time(NULL) * (uint64_t)1337;
-            fprintf(stderr, "WARNING: could not read 16 bytes from /dev/urandom; falling back to insecure PRNG\n");
-            seed16[0] ^= t;
-            seed16[1] ^= t >> 8;
-            seed16[2] ^= t >> 16;
-            seed16[3] ^= t >> 24;
-            seed16[4] ^= t >> 32;
-            seed16[5] ^= t >> 40;
-            seed16[6] ^= t >> 48;
-            seed16[7] ^= t >> 56;
-        }
-        if (frand) {
-            fclose(frand);
-        }
-    }
-    rustsecp256k1_v0_2_0_rand_seed(seed16);
-
-    printf("test count = %i\n", count);
-    printf("random seed = %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n", seed16[0], seed16[1], seed16[2], seed16[3], seed16[4], seed16[5], seed16[6], seed16[7], seed16[8], seed16[9], seed16[10], seed16[11], seed16[12], seed16[13], seed16[14], seed16[15]);
+    rustsecp256k1_v0_2_0_testrand_init(argc > 2 ? argv[2] : NULL);
 
     /* initialize */
     run_context_tests(0);
     run_context_tests(1);
     run_scratch_tests();
     ctx = rustsecp256k1_v0_2_0_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
-    if (rustsecp256k1_v0_2_0_rand_bits(1)) {
-        rustsecp256k1_v0_2_0_rand256(run32);
-        CHECK(rustsecp256k1_v0_2_0_context_randomize(ctx, rustsecp256k1_v0_2_0_rand_bits(1) ? run32 : NULL));
+    if (rustsecp256k1_v0_2_0_testrand_bits(1)) {
+        unsigned char rand32[32];
+        rustsecp256k1_v0_2_0_testrand256(rand32);
+        CHECK(rustsecp256k1_v0_2_0_context_randomize(ctx, rustsecp256k1_v0_2_0_testrand_bits(1) ? rand32 : NULL));
     }
 
     run_rand_bits();
     run_rand_int();
+    run_util_tests();
 
     run_sha256_tests();
     run_hmac_sha256_tests();
@@ -5571,6 +5860,7 @@ int main(int argc, char **argv) {
     /* ecmult tests */
     run_wnaf();
     run_point_times_order();
+    run_ecmult_near_split_bound();
     run_ecmult_chain();
     run_ecmult_constants();
     run_ecmult_gen_blind();
@@ -5579,9 +5869,7 @@ int main(int argc, char **argv) {
     run_ec_combine();
 
     /* endomorphism tests */
-#ifdef USE_ENDOMORPHISM
     run_endomorphism_tests();
-#endif
 
     /* EC point parser test */
     run_ec_pubkey_parse_test();
@@ -5595,6 +5883,10 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_MODULE_ECDH
     /* ecdh tests */
     run_ecdh_tests();
+#endif
+
+#ifdef ENABLE_MODULE_MUSIG
+    run_musig_tests();
 #endif
 
     /* ecdsa tests */
@@ -5612,13 +5904,37 @@ int main(int argc, char **argv) {
     run_recovery_tests();
 #endif
 
+#ifdef ENABLE_MODULE_GENERATOR
+    run_generator_tests();
+#endif
+
+#ifdef ENABLE_MODULE_RANGEPROOF
+    run_rangeproof_tests();
+#endif
+
+#ifdef ENABLE_MODULE_WHITELIST
+    /* Key whitelisting tests */
+    run_whitelist_tests();
+#endif
+
+#ifdef ENABLE_MODULE_SURJECTIONPROOF
+    run_surjection_tests();
+#endif
+
+#ifdef ENABLE_MODULE_EXTRAKEYS
+    run_extrakeys_tests();
+#endif
+
+#ifdef ENABLE_MODULE_SCHNORRSIG
+    run_schnorrsig_tests();
+#endif
+
     /* util tests */
-    run_memczero_test();
+    run_rustsecp256k1_v0_2_0_memczero_test();
 
     run_cmov_tests();
 
-    rustsecp256k1_v0_2_0_rand256(run32);
-    printf("random run = %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n", run32[0], run32[1], run32[2], run32[3], run32[4], run32[5], run32[6], run32[7], run32[8], run32[9], run32[10], run32[11], run32[12], run32[13], run32[14], run32[15]);
+    rustsecp256k1_v0_2_0_testrand_finish();
 
     /* shutdown */
     rustsecp256k1_v0_2_0_context_destroy(ctx);
