@@ -20,9 +20,20 @@
 #include "eckey_impl.h"
 #include "hash_impl.h"
 #include "scratch_impl.h"
+#include "selftest.h"
 
 #if defined(VALGRIND)
-# include <valgrind/memcheck.h>
+#include <valgrind/memcheck.h>
+#endif
+
+#ifdef ENABLE_MODULE_GENERATOR
+#include "include/secp256k1_generator.h"
+#endif
+
+#ifdef ENABLE_MODULE_RANGEPROOF
+#include "include/secp256k1_rangeproof.h"
+#include "modules/rangeproof/pedersen.h"
+#include "modules/rangeproof/rangeproof.h"
 #endif
 
 #define ARG_CHECK(cond) do { \
@@ -85,6 +96,8 @@ const rustsecp256k1_v0_2_0_context *rustsecp256k1_v0_2_0_context_no_precomp = &r
 
 size_t rustsecp256k1_v0_2_0_context_preallocated_size(unsigned int flags) {
     size_t ret = ROUND_TO_ALIGN(sizeof(rustsecp256k1_v0_2_0_context));
+    /* A return value of 0 is reserved as an indicator for errors when we call this function internally. */
+    VERIFY_CHECK(ret != 0);
 
     if (EXPECT((flags & SECP256K1_FLAGS_TYPE_MASK) != SECP256K1_FLAGS_TYPE_CONTEXT, 0)) {
             rustsecp256k1_v0_2_0_callback_call(&default_illegal_callback,
@@ -118,21 +131,24 @@ rustsecp256k1_v0_2_0_context* rustsecp256k1_v0_2_0_context_preallocated_create(v
     size_t prealloc_size;
     rustsecp256k1_v0_2_0_context* ret;
 
-    VERIFY_CHECK(prealloc != NULL);
+    if (!rustsecp256k1_v0_2_0_selftest()) {
+        rustsecp256k1_v0_2_0_callback_call(&default_error_callback, "self test failed");
+    }
+
     prealloc_size = rustsecp256k1_v0_2_0_context_preallocated_size(flags);
+    if (prealloc_size == 0) {
+        return NULL;
+    }
+    VERIFY_CHECK(prealloc != NULL);
     ret = (rustsecp256k1_v0_2_0_context*)manual_alloc(&prealloc, sizeof(rustsecp256k1_v0_2_0_context), base, prealloc_size);
     ret->illegal_callback = default_illegal_callback;
     ret->error_callback = default_error_callback;
 
-    if (EXPECT((flags & SECP256K1_FLAGS_TYPE_MASK) != SECP256K1_FLAGS_TYPE_CONTEXT, 0)) {
-            rustsecp256k1_v0_2_0_callback_call(&ret->illegal_callback,
-                                    "Invalid flags");
-            return NULL;
-    }
-
     rustsecp256k1_v0_2_0_ecmult_context_init(&ret->ecmult_ctx);
     rustsecp256k1_v0_2_0_ecmult_gen_context_init(&ret->ecmult_gen_ctx);
 
+    /* Flags have been checked by rustsecp256k1_v0_2_0_context_preallocated_size. */
+    VERIFY_CHECK((flags & SECP256K1_FLAGS_TYPE_MASK) == SECP256K1_FLAGS_TYPE_CONTEXT);
     if (flags & SECP256K1_FLAGS_BIT_CONTEXT_SIGN) {
         rustsecp256k1_v0_2_0_ecmult_gen_context_build(&ret->ecmult_gen_ctx, &prealloc);
     }
@@ -188,7 +204,7 @@ void rustsecp256k1_v0_2_0_context_set_error_callback(rustsecp256k1_v0_2_0_contex
  *  of the software. This is setup for use with valgrind but could be substituted with
  *  the appropriate instrumentation for other analysis tools.
  */
-static SECP256K1_INLINE void rustsecp256k1_v0_2_0_declassify(const rustsecp256k1_v0_2_0_context* ctx, void *p, size_t len) {
+static SECP256K1_INLINE void rustsecp256k1_v0_2_0_declassify(const rustsecp256k1_v0_2_0_context* ctx, const void *p, size_t len) {
 #if defined(VALGRIND)
     if (EXPECT(ctx->declassify,0)) VALGRIND_MAKE_MEM_DEFINED(p, len);
 #else
@@ -239,6 +255,9 @@ int rustsecp256k1_v0_2_0_ec_pubkey_parse(const rustsecp256k1_v0_2_0_context* ctx
     memset(pubkey, 0, sizeof(*pubkey));
     ARG_CHECK(input != NULL);
     if (!rustsecp256k1_v0_2_0_eckey_pubkey_parse(&Q, input, inputlen)) {
+        return 0;
+    }
+    if (!rustsecp256k1_v0_2_0_ge_is_in_correct_subgroup(&Q)) {
         return 0;
     }
     rustsecp256k1_v0_2_0_pubkey_save(pubkey, &Q);
@@ -510,10 +529,21 @@ int rustsecp256k1_v0_2_0_ec_seckey_verify(const rustsecp256k1_v0_2_0_context* ct
     return ret;
 }
 
-int rustsecp256k1_v0_2_0_ec_pubkey_create(const rustsecp256k1_v0_2_0_context* ctx, rustsecp256k1_v0_2_0_pubkey *pubkey, const unsigned char *seckey) {
+static int rustsecp256k1_v0_2_0_ec_pubkey_create_helper(const rustsecp256k1_v0_2_0_ecmult_gen_context *ecmult_gen_ctx, rustsecp256k1_v0_2_0_scalar *seckey_scalar, rustsecp256k1_v0_2_0_ge *p, const unsigned char *seckey) {
     rustsecp256k1_v0_2_0_gej pj;
+    int ret;
+
+    ret = rustsecp256k1_v0_2_0_scalar_set_b32_seckey(seckey_scalar, seckey);
+    rustsecp256k1_v0_2_0_scalar_cmov(seckey_scalar, &rustsecp256k1_v0_2_0_scalar_one, !ret);
+
+    rustsecp256k1_v0_2_0_ecmult_gen(ecmult_gen_ctx, &pj, seckey_scalar);
+    rustsecp256k1_v0_2_0_ge_set_gej(p, &pj);
+    return ret;
+}
+
+int rustsecp256k1_v0_2_0_ec_pubkey_create(const rustsecp256k1_v0_2_0_context* ctx, rustsecp256k1_v0_2_0_pubkey *pubkey, const unsigned char *seckey) {
     rustsecp256k1_v0_2_0_ge p;
-    rustsecp256k1_v0_2_0_scalar sec;
+    rustsecp256k1_v0_2_0_scalar seckey_scalar;
     int ret = 0;
     VERIFY_CHECK(ctx != NULL);
     ARG_CHECK(pubkey != NULL);
@@ -521,15 +551,11 @@ int rustsecp256k1_v0_2_0_ec_pubkey_create(const rustsecp256k1_v0_2_0_context* ct
     ARG_CHECK(rustsecp256k1_v0_2_0_ecmult_gen_context_is_built(&ctx->ecmult_gen_ctx));
     ARG_CHECK(seckey != NULL);
 
-    ret = rustsecp256k1_v0_2_0_scalar_set_b32_seckey(&sec, seckey);
-    rustsecp256k1_v0_2_0_scalar_cmov(&sec, &rustsecp256k1_v0_2_0_scalar_one, !ret);
-
-    rustsecp256k1_v0_2_0_ecmult_gen(&ctx->ecmult_gen_ctx, &pj, &sec);
-    rustsecp256k1_v0_2_0_ge_set_gej(&p, &pj);
+    ret = rustsecp256k1_v0_2_0_ec_pubkey_create_helper(&ctx->ecmult_gen_ctx, &seckey_scalar, &p, seckey);
     rustsecp256k1_v0_2_0_pubkey_save(pubkey, &p);
-    memczero(pubkey, sizeof(*pubkey), !ret);
+    rustsecp256k1_v0_2_0_memczero(pubkey, sizeof(*pubkey), !ret);
 
-    rustsecp256k1_v0_2_0_scalar_clear(&sec);
+    rustsecp256k1_v0_2_0_scalar_clear(&seckey_scalar);
     return ret;
 }
 
@@ -567,24 +593,31 @@ int rustsecp256k1_v0_2_0_ec_pubkey_negate(const rustsecp256k1_v0_2_0_context* ct
     return ret;
 }
 
-int rustsecp256k1_v0_2_0_ec_seckey_tweak_add(const rustsecp256k1_v0_2_0_context* ctx, unsigned char *seckey, const unsigned char *tweak) {
+
+static int rustsecp256k1_v0_2_0_ec_seckey_tweak_add_helper(rustsecp256k1_v0_2_0_scalar *sec, const unsigned char *tweak) {
     rustsecp256k1_v0_2_0_scalar term;
+    int overflow = 0;
+    int ret = 0;
+
+    rustsecp256k1_v0_2_0_scalar_set_b32(&term, tweak, &overflow);
+    ret = (!overflow) & rustsecp256k1_v0_2_0_eckey_privkey_tweak_add(sec, &term);
+    rustsecp256k1_v0_2_0_scalar_clear(&term);
+    return ret;
+}
+
+int rustsecp256k1_v0_2_0_ec_seckey_tweak_add(const rustsecp256k1_v0_2_0_context* ctx, unsigned char *seckey, const unsigned char *tweak) {
     rustsecp256k1_v0_2_0_scalar sec;
     int ret = 0;
-    int overflow = 0;
     VERIFY_CHECK(ctx != NULL);
     ARG_CHECK(seckey != NULL);
     ARG_CHECK(tweak != NULL);
 
-    rustsecp256k1_v0_2_0_scalar_set_b32(&term, tweak, &overflow);
     ret = rustsecp256k1_v0_2_0_scalar_set_b32_seckey(&sec, seckey);
-
-    ret &= (!overflow) & rustsecp256k1_v0_2_0_eckey_privkey_tweak_add(&sec, &term);
+    ret &= rustsecp256k1_v0_2_0_ec_seckey_tweak_add_helper(&sec, tweak);
     rustsecp256k1_v0_2_0_scalar_cmov(&sec, &rustsecp256k1_v0_2_0_scalar_zero, !ret);
     rustsecp256k1_v0_2_0_scalar_get_b32(seckey, &sec);
 
     rustsecp256k1_v0_2_0_scalar_clear(&sec);
-    rustsecp256k1_v0_2_0_scalar_clear(&term);
     return ret;
 }
 
@@ -592,25 +625,26 @@ int rustsecp256k1_v0_2_0_ec_privkey_tweak_add(const rustsecp256k1_v0_2_0_context
     return rustsecp256k1_v0_2_0_ec_seckey_tweak_add(ctx, seckey, tweak);
 }
 
+static int rustsecp256k1_v0_2_0_ec_pubkey_tweak_add_helper(const rustsecp256k1_v0_2_0_ecmult_context* ecmult_ctx, rustsecp256k1_v0_2_0_ge *p, const unsigned char *tweak) {
+    rustsecp256k1_v0_2_0_scalar term;
+    int overflow = 0;
+    rustsecp256k1_v0_2_0_scalar_set_b32(&term, tweak, &overflow);
+    return !overflow && rustsecp256k1_v0_2_0_eckey_pubkey_tweak_add(ecmult_ctx, p, &term);
+}
+
 int rustsecp256k1_v0_2_0_ec_pubkey_tweak_add(const rustsecp256k1_v0_2_0_context* ctx, rustsecp256k1_v0_2_0_pubkey *pubkey, const unsigned char *tweak) {
     rustsecp256k1_v0_2_0_ge p;
-    rustsecp256k1_v0_2_0_scalar term;
     int ret = 0;
-    int overflow = 0;
     VERIFY_CHECK(ctx != NULL);
     ARG_CHECK(rustsecp256k1_v0_2_0_ecmult_context_is_built(&ctx->ecmult_ctx));
     ARG_CHECK(pubkey != NULL);
     ARG_CHECK(tweak != NULL);
 
-    rustsecp256k1_v0_2_0_scalar_set_b32(&term, tweak, &overflow);
-    ret = !overflow && rustsecp256k1_v0_2_0_pubkey_load(ctx, &p, pubkey);
+    ret = rustsecp256k1_v0_2_0_pubkey_load(ctx, &p, pubkey);
     memset(pubkey, 0, sizeof(*pubkey));
+    ret = ret && rustsecp256k1_v0_2_0_ec_pubkey_tweak_add_helper(&ctx->ecmult_ctx, &p, tweak);
     if (ret) {
-        if (rustsecp256k1_v0_2_0_eckey_pubkey_tweak_add(&ctx->ecmult_ctx, &p, &term)) {
-            rustsecp256k1_v0_2_0_pubkey_save(pubkey, &p);
-        } else {
-            ret = 0;
-        }
+        rustsecp256k1_v0_2_0_pubkey_save(pubkey, &p);
     }
 
     return ret;
@@ -697,9 +731,38 @@ int rustsecp256k1_v0_2_0_ec_pubkey_combine(const rustsecp256k1_v0_2_0_context* c
 }
 
 #ifdef ENABLE_MODULE_ECDH
-# include "modules/ecdh/main_impl.h"
+#include "modules/ecdh/main_impl.h"
 #endif
 
 #ifdef ENABLE_MODULE_RECOVERY
-# include "modules/recovery/main_impl.h"
+#include "modules/recovery/main_impl.h"
 #endif
+
+#ifdef ENABLE_MODULE_EXTRAKEYS
+#include "modules/extrakeys/main_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_SCHNORRSIG
+#include "modules/schnorrsig/main_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_MUSIG
+#include "modules/musig/main_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_GENERATOR
+#include "modules/generator/main_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_RANGEPROOF
+#include "modules/rangeproof/main_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_WHITELIST
+#include "modules/whitelist/main_impl.h"
+#endif
+
+#ifdef ENABLE_MODULE_SURJECTIONPROOF
+#include "modules/surjection/main_impl.h"
+#endif
+

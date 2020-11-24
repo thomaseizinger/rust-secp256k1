@@ -47,6 +47,9 @@ static int rustsecp256k1_v0_2_0_scalar_set_b32_seckey(rustsecp256k1_v0_2_0_scala
 /** Set a scalar to an unsigned integer. */
 static void rustsecp256k1_v0_2_0_scalar_set_int(rustsecp256k1_v0_2_0_scalar *r, unsigned int v);
 
+/** Set a scalar to an unsigned 64-bit integer */
+static void rustsecp256k1_v0_2_0_scalar_set_u64(rustsecp256k1_v0_2_0_scalar *r, uint64_t v);
+
 /** Convert a scalar to a byte array. */
 static void rustsecp256k1_v0_2_0_scalar_get_b32(unsigned char *bin, const rustsecp256k1_v0_2_0_scalar* a);
 
@@ -102,17 +105,19 @@ static void rustsecp256k1_v0_2_0_scalar_order_get_num(rustsecp256k1_v0_2_0_num *
 /** Compare two scalars. */
 static int rustsecp256k1_v0_2_0_scalar_eq(const rustsecp256k1_v0_2_0_scalar *a, const rustsecp256k1_v0_2_0_scalar *b);
 
-#ifdef USE_ENDOMORPHISM
-/** Find r1 and r2 such that r1+r2*2^128 = a. */
-static void rustsecp256k1_v0_2_0_scalar_split_128(rustsecp256k1_v0_2_0_scalar *r1, rustsecp256k1_v0_2_0_scalar *r2, const rustsecp256k1_v0_2_0_scalar *a);
-/** Find r1 and r2 such that r1+r2*lambda = a, and r1 and r2 are maximum 128 bits long (see rustsecp256k1_v0_2_0_gej_mul_lambda). */
-static void rustsecp256k1_v0_2_0_scalar_split_lambda(rustsecp256k1_v0_2_0_scalar *r1, rustsecp256k1_v0_2_0_scalar *r2, const rustsecp256k1_v0_2_0_scalar *a);
-#endif
+/** Find r1 and r2 such that r1+r2*2^128 = k. */
+static void rustsecp256k1_v0_2_0_scalar_split_128(rustsecp256k1_v0_2_0_scalar *r1, rustsecp256k1_v0_2_0_scalar *r2, const rustsecp256k1_v0_2_0_scalar *k);
+/** Find r1 and r2 such that r1+r2*lambda = k,
+ * where r1 and r2 or their negations are maximum 128 bits long (see rustsecp256k1_v0_2_0_ge_mul_lambda). */
+static void rustsecp256k1_v0_2_0_scalar_split_lambda(rustsecp256k1_v0_2_0_scalar *r1, rustsecp256k1_v0_2_0_scalar *r2, const rustsecp256k1_v0_2_0_scalar *k);
 
 /** Multiply a and b (without taking the modulus!), divide by 2**shift, and round to the nearest integer. Shift must be at least 256. */
 static void rustsecp256k1_v0_2_0_scalar_mul_shift_var(rustsecp256k1_v0_2_0_scalar *r, const rustsecp256k1_v0_2_0_scalar *a, const rustsecp256k1_v0_2_0_scalar *b, unsigned int shift);
 
 /** If flag is true, set *r equal to *a; otherwise leave it. Constant-time.  Both *r and *a must be initialized.*/
 static void rustsecp256k1_v0_2_0_scalar_cmov(rustsecp256k1_v0_2_0_scalar *r, const rustsecp256k1_v0_2_0_scalar *a, int flag);
+
+/** Generate two scalars from a 32-byte seed and an integer using the chacha20 stream cipher */
+static void rustsecp256k1_v0_2_0_scalar_chacha20(rustsecp256k1_v0_2_0_scalar *r1, rustsecp256k1_v0_2_0_scalar *r2, const unsigned char *seed, uint64_t idx);
 
 #endif /* SECP256K1_SCALAR_H */

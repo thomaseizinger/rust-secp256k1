@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2013, 2014 Pieter Wuille                             *
+ * Copyright (c) 2013-2015 Pieter Wuille, Gregory Maxwell             *
  * Distributed under the MIT software license, see the accompanying   *
  * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
@@ -129,6 +129,32 @@ static SECP256K1_INLINE void *manual_alloc(void** prealloc_ptr, size_t alloc_siz
     return ret;
 }
 
+/* Extract the sign of an int64, take the abs and return a uint64, constant time. */
+SECP256K1_INLINE static int rustsecp256k1_v0_2_0_sign_and_abs64(uint64_t *out, int64_t in) {
+    uint64_t mask0, mask1;
+    int ret;
+    ret = in < 0;
+    mask0 = ret + ~((uint64_t)0);
+    mask1 = ~mask0;
+    *out = (uint64_t)in;
+    *out = (*out & mask0) | ((~*out + 1) & mask1);
+    return ret;
+}
+
+SECP256K1_INLINE static int rustsecp256k1_v0_2_0_clz64_var(uint64_t x) {
+    int ret;
+    if (!x) {
+        return 64;
+    }
+# if defined(HAVE_BUILTIN_CLZLL)
+    ret = __builtin_clzll(x);
+# else
+    /*FIXME: debruijn fallback. */
+    for (ret = 0; ((x & (1ULL << 63)) == 0); x <<= 1, ret++);
+# endif
+    return ret;
+}
+
 /* Macro for restrict, when available and not in a VERIFY build. */
 #if defined(SECP256K1_BUILD) && defined(VERIFY)
 # define SECP256K1_RESTRICT
@@ -160,22 +186,33 @@ static SECP256K1_INLINE void *manual_alloc(void** prealloc_ptr, size_t alloc_siz
 # define SECP256K1_GNUC_EXT
 #endif
 
-#if defined(__BYTE_ORDER__)
-# if defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ && !defined(SECP256K1_LITTLE_ENDIAN)
+/* If SECP256K1_{LITTLE,BIG}_ENDIAN is not explicitly provided, infer from various other system macros. */
+#if !defined(SECP256K1_LITTLE_ENDIAN) && !defined(SECP256K1_BIG_ENDIAN)
+/* Inspired by https://github.com/rofl0r/endianness.h/blob/9853923246b065a3b52d2c43835f3819a62c7199/endianness.h#L52L73 */
+# if (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || \
+     defined(_X86_) || defined(__x86_64__) || defined(__i386__) || \
+     defined(__i486__) || defined(__i586__) || defined(__i686__) || \
+     defined(__MIPSEL) || defined(_MIPSEL) || defined(MIPSEL) || \
+     defined(__ARMEL__) || defined(__AARCH64EL__) || \
+     (defined(__LITTLE_ENDIAN__) && __LITTLE_ENDIAN__ == 1) || \
+     (defined(_LITTLE_ENDIAN) && _LITTLE_ENDIAN == 1) || \
+     defined(_M_IX86) || defined(_M_AMD64) || defined(_M_ARM) /* MSVC */
 #  define SECP256K1_LITTLE_ENDIAN
-# elif defined(__ORDER_BIG_ENDIAN__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ && !defined(SECP256K1_BIG_ENDIAN)
+# endif
+# if (defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) || \
+     defined(__MIPSEB) || defined(_MIPSEB) || defined(MIPSEB) || \
+     defined(__MICROBLAZEEB__) || defined(__ARMEB__) || defined(__AARCH64EB__) || \
+     (defined(__BIG_ENDIAN__) && __BIG_ENDIAN__ == 1) || \
+     (defined(_BIG_ENDIAN) && _BIG_ENDIAN == 1)
 #  define SECP256K1_BIG_ENDIAN
 # endif
-#endif
-#if defined(_MSC_VER) && defined(_WIN32) && !defined(SECP256K1_LITTLE_ENDIAN)
-# define SECP256K1_LITTLE_ENDIAN
 #endif
 #if defined(SECP256K1_LITTLE_ENDIAN) == defined(SECP256K1_BIG_ENDIAN)
 # error Please make sure that either SECP256K1_LITTLE_ENDIAN or SECP256K1_BIG_ENDIAN is set, see src/util.h.
 #endif
 
 /* Zero memory if flag == 1. Flag must be 0 or 1. Constant time. */
-static SECP256K1_INLINE void memczero(void *s, size_t len, int flag) {
+static SECP256K1_INLINE void rustsecp256k1_v0_2_0_memczero(void *s, size_t len, int flag) {
     unsigned char *p = (unsigned char *)s;
     /* Access flag with a volatile-qualified lvalue.
        This prevents clang from figuring out (after inlining) that flag can
@@ -187,6 +224,24 @@ static SECP256K1_INLINE void memczero(void *s, size_t len, int flag) {
         p++;
         len--;
     }
+}
+
+/** Semantics like memcmp. Variable-time.
+ *
+ * We use this to avoid possible compiler bugs with memcmp, e.g.
+ * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95189
+ */
+static SECP256K1_INLINE int rustsecp256k1_v0_2_0_memcmp_var(const void *s1, const void *s2, size_t n) {
+    const unsigned char *p1 = s1, *p2 = s2;
+    size_t i;
+
+    for (i = 0; i < n; i++) {
+        int diff = p1[i] - p2[i];
+        if (diff != 0) {
+            return diff;
+        }
+    }
+    return 0;
 }
 
 /** If flag is true, set *r equal to *a; otherwise leave it. Constant-time.  Both *r and *a must be initialized and non-negative.*/
@@ -215,14 +270,20 @@ static SECP256K1_INLINE void rustsecp256k1_v0_2_0_int_cmov(int *r, const int *a,
 # define SECP256K1_WIDEMUL_INT128 1
 #elif defined(USE_FORCE_WIDEMUL_INT64)
 # define SECP256K1_WIDEMUL_INT64 1
-#elif defined(__SIZEOF_INT128__)
+#elif defined(UINT128_MAX) || defined(__SIZEOF_INT128__)
 # define SECP256K1_WIDEMUL_INT128 1
 #else
 # define SECP256K1_WIDEMUL_INT64 1
 #endif
 #if defined(SECP256K1_WIDEMUL_INT128)
+# if !defined(UINT128_MAX) && defined(__SIZEOF_INT128__)
 SECP256K1_GNUC_EXT typedef unsigned __int128 uint128_t;
 SECP256K1_GNUC_EXT typedef __int128 int128_t;
+#define UINT128_MAX ((uint128_t)(-1))
+#define INT128_MAX ((int128_t)(UINT128_MAX >> 1))
+#define INT128_MIN (-INT128_MAX - 1)
+/* No (U)INT128_C macros because compilers providing __int128 do not support 128-bit literals.  */
+# endif
 #endif
 
 #endif /* SECP256K1_UTIL_H */

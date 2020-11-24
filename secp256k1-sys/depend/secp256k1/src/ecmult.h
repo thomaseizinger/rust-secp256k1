@@ -15,9 +15,7 @@
 typedef struct {
     /* For accelerating the computation of a*P + b*G: */
     rustsecp256k1_v0_2_0_ge_storage (*pre_g)[];    /* odd multiples of the generator */
-#ifdef USE_ENDOMORPHISM
     rustsecp256k1_v0_2_0_ge_storage (*pre_g_128)[]; /* odd multiples of 2^128*generator */
-#endif
 } rustsecp256k1_v0_2_0_ecmult_context;
 
 static const size_t SECP256K1_ECMULT_CONTEXT_PREALLOCATED_SIZE;
