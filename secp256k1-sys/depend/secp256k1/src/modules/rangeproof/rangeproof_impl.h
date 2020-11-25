@@ -490,7 +490,7 @@ SECP256K1_INLINE static int rustsecp256k1_v0_2_0_rangeproof_getheader_impl(size_
     int has_nz_range;
     int has_min;
     if (plen < 65 || ((proof[*offset] & 128) != 0)) {
-        return 0;
+        return -1;
     }
     has_nz_range = proof[*offset] & 64;
     has_min = proof[*offset] & 32;
@@ -500,11 +500,11 @@ SECP256K1_INLINE static int rustsecp256k1_v0_2_0_rangeproof_getheader_impl(size_
         *exp = proof[*offset] & 31;
         *offset += 1;
         if (*exp > 18) {
-           return 0;
+           return -2;
         }
         *mantissa = proof[*offset] + 1;
         if (*mantissa > 64) {
-            return 0;
+            return -3;
          }
         *max_value = UINT64_MAX>>(64-*mantissa);
     } else {
@@ -514,7 +514,7 @@ SECP256K1_INLINE static int rustsecp256k1_v0_2_0_rangeproof_getheader_impl(size_
     *scale = 1;
     for (i = 0; i < *exp; i++) {
         if (*max_value > UINT64_MAX / 10) {
-            return 0;
+            return -4;
         }
         *max_value *= 10;
         *scale *= 10;
@@ -522,7 +522,7 @@ SECP256K1_INLINE static int rustsecp256k1_v0_2_0_rangeproof_getheader_impl(size_
     *min_value = 0;
     if (has_min) {
         if(plen - *offset < 8) {
-            return 0;
+            return -5;
         }
         /*FIXME: Compact minvalue encoding?*/
         for (i = 0; i < 8; i++) {
@@ -531,7 +531,7 @@ SECP256K1_INLINE static int rustsecp256k1_v0_2_0_rangeproof_getheader_impl(size_
         *offset += 8;
     }
     if (*max_value > UINT64_MAX - *min_value) {
-        return 0;
+        return -6;
     }
     *max_value += *min_value;
     return 1;

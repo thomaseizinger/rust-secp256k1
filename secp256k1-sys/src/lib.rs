@@ -33,7 +33,11 @@ pub mod types;
 #[cfg(feature = "recovery")]
 pub mod recovery;
 
-use core::{hash, slice, ptr};
+mod zkp;
+pub use self::zkp::*;
+// TODO: Revert prefix version change to upstream (to avoid merge conflicts)
+
+use core::{hash, ptr, slice};
 use types::*;
 
 /// Flag for context to enable no precomputation
@@ -124,7 +128,6 @@ impl Default for Signature {
         Signature::new()
     }
 }
-
 
 #[cfg(not(feature = "fuzztarget"))]
 extern "C" {
@@ -302,7 +305,6 @@ extern "C" {
         data: *mut c_void,
     ) -> c_int;
 }
-
 
 /// A reimplementation of the C function `secp256k1_context_create` in rust.
 ///
@@ -859,4 +861,3 @@ mod tests {
         assert_eq!(orig.len(), unsafe {strlen(test.as_ptr())});
     }
 }
-

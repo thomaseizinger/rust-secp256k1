@@ -161,7 +161,7 @@ impl SharedSecret {
 #[cfg(test)]
 mod tests {
     use rand::thread_rng;
-    use crate::PublicKey;
+    use PublicKey;
     use bitcoin_hashes::{Hash, sha256};
 
     use super::SharedSecret;
@@ -204,7 +204,7 @@ mod tests {
             expect_result.into()
         });
         assert_eq!(&expect_result[..], &result[..]);
-        assert_ne!(pk_out_bytes, [0u8; 65]);
+        assert_ne!(&pk_out_bytes[..], &[0u8; 65][..]);
     }
 
     #[test]
