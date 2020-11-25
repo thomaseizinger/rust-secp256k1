@@ -1,0 +1,25 @@
+{
+  "$schema": "https://dprint.dev/schemas/v0.json",
+  "projectType": "openSource",
+  "incremental": true,
+  "includes": ["**/*.{rs}"],
+  "excludes": [
+    "examples/",
+    "no_std_test/",
+    "secp256k1-sys/src/lib.rs",
+    "secp256k1-sys/src/macros.rs",
+    "secp256k1-sys/src/recovery.rs",
+    "secp256k1-sys/src/types.rs",
+    "secp256k1-sys/build.rs",
+    "src/constants.rs",
+    "src/context.rs",
+    "src/ecdh.rs",
+    "src/key.rs",
+    "src/macros.rs",
+    "src/recovery.rs",
+    "src/lib.rs"
+  ],
+  "plugins": [
+    "https://plugins.dprint.dev/rustfmt-0.3.0.wasm"
+  ]
+}

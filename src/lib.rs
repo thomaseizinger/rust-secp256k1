@@ -142,21 +142,24 @@ mod context;
 pub mod constants;
 pub mod ecdh;
 pub mod key;
+mod zkp;
 #[cfg(feature = "recovery")]
 pub mod recovery;
 
-pub use key::SecretKey;
-pub use key::PublicKey;
 pub use context::*;
 use core::marker::PhantomData;
 use core::ops::Deref;
 use ffi::CPtr;
+pub use key::{PublicKey, SecretKey};
+pub use zkp::*;
 
 #[cfg(feature = "global-context")]
 pub use context::global::SECP256K1;
 
 #[cfg(feature = "bitcoin_hashes")]
 use bitcoin_hashes::Hash;
+
+// TODO: Move all zkp code to separate module
 
 /// An ECDSA signature
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -523,6 +526,18 @@ pub enum Error {
     InvalidTweak,
     /// Didn't pass enough memory to context creation with preallocated memory
     NotEnoughMemory,
+    /// Failed to produce a surjection proof because of an internal error within `libsecp256k1-zkp`
+    CannotProveSurjection,
+    /// Given bytes don't represent a valid surjection proof
+    InvalidSurjectionProof,
+    /// Given bytes don't represent a valid pedersen commitment
+    InvalidPedersenCommitment,
+    /// Failed to produce a range proof because of an internal error within `libsecp256k1-zkp`
+    CannotMakeRangeProof,
+    /// Given range proof does not prove that the commitment is within a range
+    InvalidRangeProof,
+    /// Bad generator
+    InvalidGenerator,
 }
 
 impl Error {
@@ -536,6 +551,12 @@ impl Error {
             Error::InvalidRecoveryId => "secp: bad recovery id",
             Error::InvalidTweak => "secp: bad tweak",
             Error::NotEnoughMemory => "secp: not enough memory allocated",
+            Error::CannotProveSurjection => "failed to prove surjection",
+            Error::InvalidSurjectionProof => "malformed surjection proof",
+            Error::InvalidPedersenCommitment => "malformed pedersen commitment",
+            Error::CannotMakeRangeProof => "failed to generate range proof",
+            Error::InvalidRangeProof => "failed to verify range proof",
+            Error::InvalidGenerator => "malformed generator"
         }
     }
 }
@@ -599,6 +620,62 @@ impl Deref for SerializedSignature {
 impl Eq for SerializedSignature {}
 
 impl<C: Context> Eq for Secp256k1<C> { }
+/// Represents a tag.
+///
+/// Tags are 32-byte data structures used in surjection proofs. Usually, tags are created from hashes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+pub struct Tag(ffi::Tag);
+
+impl Tag {
+    pub(crate) fn into_inner(self) -> ffi::Tag {
+        self.0
+    }
+}
+
+impl AsRef<[u8]> for Tag {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl fmt::Display for Tag {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "{:x}", self)
+    }
+}
+
+impl fmt::LowerHex for Tag {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        for i in self.0.as_ref() {
+            write!(f, "{:02x}", i)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+impl Tag {
+    pub fn random() -> Self {
+        use rand::RngCore;
+
+        let mut bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut bytes);
+
+        Self::from(bytes)
+    }
+}
+
+impl From<[u8; 32]> for Tag {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(ffi::Tag::from(bytes))
+    }
+}
+
+impl From<Tag> for [u8; 32] {
+    fn from(tag: Tag) -> Self {
+        tag.0.into()
+    }
+}
 
 impl<C: Context> Drop for Secp256k1<C> {
     fn drop(&mut self) {
