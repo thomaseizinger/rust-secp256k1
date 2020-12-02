@@ -1,4 +1,6 @@
-use crate::{types::*, Context, PublicKey};
+use core::{fmt, hash};
+
+use {types::*, Context, PublicKey};
 
 /// Rangeproof maximum length
 pub const RANGEPROOF_MAX_LENGTH: size_t = 5134;
@@ -38,17 +40,6 @@ extern "C" {
         blind: *const c_uchar,
         value: u64,
         value_gen: *const PublicKey,
-    ) -> c_int;
-
-    #[cfg_attr(
-        not(feature = "external-symbols"),
-        link_name = "rustsecp256k1_v0_2_0_pedersen_commitment_to_pubkey"
-    )]
-    // Get the public key of a pedersen commitment
-    pub fn secp256k1_pedersen_commitment_to_pubkey(
-        cx: *const Context,
-        pk: *mut PublicKey,
-        commit: *const PedersenCommitment,
     ) -> c_int;
 
     #[cfg_attr(
@@ -95,21 +86,6 @@ extern "C" {
 
     #[cfg_attr(
         not(feature = "external-symbols"),
-        link_name = "rustsecp256k1_v0_2_0_pedersen_commit_sum"
-    )]
-    // Takes two list of 64-byte commitments and sums the first set, subtracts
-    // the second and returns the resulting commitment.
-    pub fn secp256k1_pedersen_commit_sum(
-        ctx: *const Context,
-        commit_out: *const c_uchar,
-        commits: *const *const c_uchar,
-        pcnt: size_t,
-        ncommits: *const *const c_uchar,
-        ncnt: size_t,
-    ) -> c_int;
-
-    #[cfg_attr(
-        not(feature = "external-symbols"),
         link_name = "rustsecp256k1_v0_2_0_pedersen_verify_tally"
     )]
     // Takes two list of 64-byte commitments and sums the first set and
@@ -122,6 +98,7 @@ extern "C" {
         ncnt: size_t,
     ) -> c_int;
 
+    #[cfg(feature = "std")]
     #[cfg_attr(
         not(feature = "external-symbols"),
         link_name = "rustsecp256k1_v0_2_0_rangeproof_info"
@@ -136,6 +113,7 @@ extern "C" {
         plen: size_t,
     ) -> c_int;
 
+    #[cfg(feature = "std")]
     #[cfg_attr(
         not(feature = "external-symbols"),
         link_name = "rustsecp256k1_v0_2_0_rangeproof_rewind"
@@ -157,6 +135,7 @@ extern "C" {
         gen: *const PublicKey,
     ) -> c_int;
 
+    #[cfg(feature = "std")]
     #[cfg_attr(
         not(feature = "external-symbols"),
         link_name = "rustsecp256k1_v0_2_0_rangeproof_verify"
@@ -173,6 +152,7 @@ extern "C" {
         gen: *const PublicKey,
     ) -> c_int;
 
+    #[cfg(feature = "std")]
     #[cfg_attr(
         not(feature = "external-symbols"),
         link_name = "rustsecp256k1_v0_2_0_rangeproof_sign"
@@ -302,7 +282,7 @@ extern "C" {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Copy, Clone)]
 pub struct SurjectionProof {
     #[doc = " Total number of input asset tags"]
     pub n_inputs: size_t,
@@ -310,6 +290,26 @@ pub struct SurjectionProof {
     pub used_inputs: [c_uchar; 32usize],
     #[doc = " Borromean signature: e0, scalars"]
     pub data: [c_uchar; 8224usize],
+}
+
+impl fmt::Debug for SurjectionProof {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let slice = &self.data[..];
+
+        f.debug_struct("SurjectionProof")
+            .field("n_inputs", &self.n_inputs)
+            .field("used_inputs", &self.used_inputs)
+            .field("data", &slice)
+            .finish()
+    }
+}
+
+impl PartialEq for SurjectionProof {
+    fn eq(&self, other: &Self) -> bool {
+        self.n_inputs == other.n_inputs
+            && self.used_inputs == other.used_inputs
+            && &self.data[..] == &other.data[..]
+    }
 }
 
 impl SurjectionProof {
@@ -322,13 +322,15 @@ impl SurjectionProof {
     }
 }
 
+#[cfg(feature = "std")]
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RangeProof(Box<[c_uchar]>);
 
+#[cfg(feature = "std")]
 impl RangeProof {
     pub fn new(bytes: &[u8]) -> Self {
-        Self(bytes.into())
+        RangeProof(bytes.into())
     }
 
     pub fn len(&self) -> usize {
@@ -336,7 +338,7 @@ impl RangeProof {
     }
 
     pub fn is_empty(&self) -> bool {
-        dbg!(self.0.is_empty())
+        self.0.is_empty()
     }
 
     pub fn as_ptr(&self) -> *const c_uchar {
@@ -356,19 +358,19 @@ impl_raw_debug!(Tag);
 
 impl Tag {
     pub fn new() -> Self {
-        Self([0; 32])
+        Tag([0; 32])
     }
 }
 
 impl Default for Tag {
     fn default() -> Self {
-        Self::new()
+        Tag::new()
     }
 }
 
 impl From<[u8; 32]> for Tag {
     fn from(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Tag(bytes)
     }
 }
 
@@ -380,19 +382,24 @@ impl From<Tag> for [u8; 32] {
 
 // TODO: Replace this with ffi::PublicKey?
 #[repr(C)]
-#[derive(Hash)]
 pub struct PedersenCommitment([c_uchar; 64]);
 impl_array_newtype!(PedersenCommitment, c_uchar, 64);
 impl_raw_debug!(PedersenCommitment);
 
 impl PedersenCommitment {
     pub fn new() -> Self {
-        Self([0; 64])
+        PedersenCommitment([0; 64])
     }
 }
 
 impl Default for PedersenCommitment {
     fn default() -> Self {
-        Self::new()
+        PedersenCommitment::new()
+    }
+}
+
+impl hash::Hash for PedersenCommitment {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        state.write(&self.0)
     }
 }

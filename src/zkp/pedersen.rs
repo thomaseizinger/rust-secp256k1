@@ -1,7 +1,6 @@
-use crate::{from_hex, key::ONE_KEY, Error, Generator, Secp256k1, SecretKey, Signing};
+use core::{fmt, slice, str};
 use ffi;
-use std::fmt;
-use std::str;
+use {from_hex, key::ONE_KEY, Error, Generator, Secp256k1, SecretKey, Signing};
 
 /// Represents a commitment to a single u64 value.
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
@@ -42,7 +41,7 @@ impl PedersenCommitment {
             return Err(Error::InvalidPedersenCommitment);
         }
 
-        Ok(Self(commitment))
+        Ok(PedersenCommitment(commitment))
     }
 
     pub(crate) fn as_inner(&self) -> &ffi::PedersenCommitment {
@@ -102,29 +101,11 @@ impl CommitmentSecrets {
         value_blinding_factor: SecretKey,
         generator_blinding_factor: SecretKey,
     ) -> Self {
-        Self {
+        CommitmentSecrets {
             value,
             value_blinding_factor,
             generator_blinding_factor,
         }
-    }
-}
-
-#[cfg(test)]
-impl CommitmentSecrets {
-    pub fn random(value: u64) -> Self {
-        Self {
-            value,
-            value_blinding_factor: SecretKey::new(&mut rand::thread_rng()),
-            generator_blinding_factor: SecretKey::new(&mut rand::thread_rng()),
-        }
-    }
-
-    #[cfg(feature = "global-context")]
-    pub fn commit(&self, tag: crate::Tag) -> PedersenCommitment {
-        let generator = crate::SECP256K1.blind(tag, self.generator_blinding_factor);
-
-        crate::SECP256K1.commit(self.value, self.value_blinding_factor, generator)
     }
 }
 
@@ -170,7 +151,7 @@ impl<C: Signing> Secp256k1<C> {
         assert_eq!(1, ret, "failed to compute blinding factor");
 
         let last = vbf.last().expect("this vector is never empty");
-        let slice = unsafe { std::slice::from_raw_parts(*last, 32) };
+        let slice = unsafe { slice::from_raw_parts(*last, 32) };
         SecretKey::from_slice(slice).expect("data is always a valid secret key")
     }
 
@@ -288,7 +269,26 @@ impl<'de> ::serde::Deserialize<'de> for PedersenCommitment {
 #[cfg(all(test, feature = "global-context"))]
 mod tests {
     use super::*;
-    use crate::{Tag, SECP256K1};
+    use rand::thread_rng;
+    use {Tag, SECP256K1};
+
+    impl CommitmentSecrets {
+        pub fn random(value: u64) -> Self {
+            use rand::thread_rng;
+
+            Self {
+                value,
+                value_blinding_factor: SecretKey::new(&mut thread_rng()),
+                generator_blinding_factor: SecretKey::new(&mut thread_rng()),
+            }
+        }
+
+        pub fn commit(&self, tag: Tag) -> PedersenCommitment {
+            let generator = SECP256K1.blind(tag, self.generator_blinding_factor);
+
+            SECP256K1.commit(self.value, self.value_blinding_factor, generator)
+        }
+    }
 
     #[test]
     fn test_serialize_and_parse_pedersen_commitment() {
@@ -313,7 +313,7 @@ mod tests {
         let secrets_3 = CommitmentSecrets::random(1000);
         let commitment_3 = secrets_3.commit(tag_1);
 
-        let tbf_4 = SecretKey::new(&mut rand::thread_rng());
+        let tbf_4 = SecretKey::new(&mut thread_rng());
         let blinded_tag_4 = SECP256K1.blind(tag_2, tbf_4);
         let vbf_4 = SECP256K1.compute_adaptive_blinding_factor(
             1000,

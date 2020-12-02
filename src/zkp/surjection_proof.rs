@@ -1,7 +1,8 @@
-use crate::Verification;
-use crate::{Error, Generator, Secp256k1};
+use core::mem;
+use core::mem::size_of;
 use ffi;
-use std::mem::size_of;
+use Verification;
+use {Error, Generator, Secp256k1};
 
 /// Represents a surjection proof.
 #[derive(Debug, PartialEq)]
@@ -12,14 +13,15 @@ pub struct SurjectionProof {
 #[cfg(feature = "rand")]
 mod with_rand {
     use super::*;
-    use crate::{SecretKey, Signing, Tag};
+    use rand::Rng;
+    use {SecretKey, Signing, Tag};
 
     impl<C: Signing> Secp256k1<C> {
         /// Prove that a given tag - when blinded - is contained within another set of blinded tags.
         ///
         /// Mathematically, we are proving that there exists a surjective mapping between the domain and codomain of tags.
         /// Blinding a tag produces a [`Generator`]. As such, to create this proof we need to provide the `[Generator]`s and the respective blinding factors that were used to create them.
-        pub fn prove_surjective<R: rand::Rng>(
+        pub fn prove_surjective<R: Rng>(
             &self,
             rng: &mut R,
             codomain_tag: Tag,
@@ -52,7 +54,7 @@ mod with_rand {
                     domain_tags.as_ptr(),
                     domain.len(),
                     domain.len().min(3),
-                    &codomain_tag.0,
+                    codomain_tag.as_inner(),
                     max_iteration,
                     seed.as_ptr(),
                 )
@@ -103,7 +105,7 @@ impl<C: Verification> Secp256k1<C> {
         let domain_blinded_tags = unsafe {
             debug_assert_eq!(size_of::<Generator>(), size_of::<ffi::PublicKey>());
 
-            std::mem::transmute::<_, &[ffi::PublicKey]>(domain)
+            mem::transmute::<_, &[ffi::PublicKey]>(domain)
         };
 
         let ret = unsafe {
@@ -171,8 +173,8 @@ impl SurjectionProof {
 #[cfg(all(test, feature = "global-context"))] // use global context for convenience
 mod tests {
     use super::*;
-    use crate::{SecretKey, Tag, SECP256K1};
     use rand::thread_rng;
+    use {SecretKey, Tag, SECP256K1};
 
     #[test]
     fn test_create_and_verify_surjection_proof() {

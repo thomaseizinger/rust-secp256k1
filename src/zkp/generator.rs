@@ -1,7 +1,6 @@
-use crate::{constants, from_hex, Error, Secp256k1, SecretKey, Signing, Tag};
+use core::{fmt, str};
 use ffi;
-use std::fmt;
-use std::str;
+use {constants, from_hex, Error, Secp256k1, SecretKey, Signing, Tag};
 
 /// Represents a generator on the secp256k1 curve.
 ///
@@ -43,7 +42,7 @@ impl Generator {
             return Err(Error::InvalidGenerator);
         }
 
-        Ok(Self(public_key))
+        Ok(Generator(public_key))
     }
 
     /// Extracts the internal representation of this generator.
