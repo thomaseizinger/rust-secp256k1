@@ -1,12 +1,12 @@
-use std::ops::Range;
-
-use crate::Error;
-use crate::Generator;
-use crate::PedersenCommitment;
-use crate::Verification;
-use crate::{Secp256k1, SecretKey, Signing};
+use core::fmt;
 use ffi;
 use ffi::RANGEPROOF_MAX_LENGTH;
+use std::ops::Range;
+use Error;
+use Generator;
+use PedersenCommitment;
+use Verification;
+use {Secp256k1, SecretKey, Signing};
 
 /// Represents a range proof.
 ///
@@ -64,9 +64,11 @@ impl RangeProof {
 }
 
 #[cfg(feature = "bitcoin_hashes")]
-impl std::fmt::Display for RangeProof {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        bitcoin_hashes::hex::format_hex(self.serialize().as_slice(), f)
+impl fmt::Display for RangeProof {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use bitcoin_hashes::hex::format_hex;
+
+        format_hex(self.serialize().as_slice(), f)
     }
 }
 
@@ -92,7 +94,7 @@ impl<'de> ::serde::Deserialize<'de> for RangeProof {
             impl<'de> ::serde::de::Visitor<'de> for HexVisitor {
                 type Value = RangeProof;
 
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                     formatter.write_str("an ASCII hex string")
                 }
 
@@ -113,7 +115,7 @@ impl<'de> ::serde::Deserialize<'de> for RangeProof {
             impl<'de> ::serde::de::Visitor<'de> for BytesVisitor {
                 type Value = RangeProof;
 
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                     formatter.write_str("a bytestring")
                 }
 
@@ -140,7 +142,6 @@ pub struct Opening {
 
 impl<C: Signing> Secp256k1<C> {
     /// Prove that `commitment` hides a value within a range, with the lower bound set to `min_value`.
-    #[allow(clippy::too_many_arguments)]
     pub fn make_rangeproof(
         &self,
         min_value: u64,
@@ -283,9 +284,9 @@ impl<C: Verification> Secp256k1<C> {
 #[cfg(all(test, feature = "global-context"))] // use global context for convenience
 mod tests {
     use super::*;
-    use crate::{CommitmentSecrets, Tag};
-    use crate::SECP256K1;
     use rand::thread_rng;
+    use SECP256K1;
+    use {CommitmentSecrets, Tag};
 
     #[test]
     fn create_and_verify_range_proof() {
@@ -355,7 +356,7 @@ mod tests {
             )
             .unwrap();
 
-        let (opening, range) = SECP256K1
+        let (opening, _range) = SECP256K1
             .rewind_rangeproof(
                 &proof,
                 commitment,
@@ -373,7 +374,5 @@ mod tests {
 
         // TODO: File bug with upstream: message length is not set correctly
         assert!(opening.message.starts_with(message));
-
-        assert!(range.contains(&value));
     }
 }
