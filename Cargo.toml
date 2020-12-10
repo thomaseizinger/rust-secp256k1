@@ -36,20 +36,18 @@ fuzztarget = ["secp256k1-sys/fuzztarget"]
 [dependencies]
 secp256k1-sys = { version = "0.3.1", default-features = false, path = "./secp256k1-sys" }
 bitcoin_hashes = { version = "0.9", optional = true }
-rand = { version = "0.6", default-features = false, optional = true }
+rand = { version = "0.7", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, optional = true }
 
-
 [dev-dependencies]
-rand = "0.6"
-rand_core = "0.4"
+rand = "0.7"
+rand_core = "0.5"
 serde_test = "1.0"
 bitcoin_hashes = "0.9"
 
 [target.wasm32-unknown-unknown.dev-dependencies]
 wasm-bindgen-test = "0.3"
 rand = { version = "0.6", features = ["wasm-bindgen"] }
-
 
 [[example]]
 name = "sign_verify_recovery"
